@@ -1,0 +1,28 @@
+{
+  "name": "umi-plugin-browser-extension",
+  "description": "UmiJs v4 plugin: chromium or firefox extension development",
+  "author": "Kukushouhou <1@kukushouhou.com>",
+  "version": "0.0.1",
+  "main": "dist/cjs/index.js",
+  "types": "dist/cjs/index.d.ts",
+  "scripts": {
+    "dev": "father dev",
+    "build": "father build"
+  },
+  "keywords": [],
+  "authors": {
+    "name": "Kukushouhou <1@kukushouhou.com>",
+    "email": "1@kukushouhou.com"
+  },
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "^18.19.24",
+    "@umijs/utils": "^4.1.2",
+    "father": "^4.4.0",
+    "typescript": "^5.4.2",
+    "umi": "^4.1.2"
+  }
+}
