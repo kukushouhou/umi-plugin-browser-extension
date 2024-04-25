@@ -92,8 +92,8 @@ var src_default = (api) => {
     }
     if (memo.codeSplitting) {
       memo.codeSplitting = null;
-      import_utils.logger.warn("请勿配置UMI自带代码分割功能,需使用本插件提供的代码分割");
-      import_utils.logger.warn("Please do not configure UMI own code splitting function, use the code splitting provided by this plugin");
+      import_utils.logger.warn(`${import_interface.PluginName} 请勿配置UmiJs自带代码分割功能,需使用本插件提供的代码分割`);
+      import_utils.logger.warn(`${import_interface.PluginName} Please do not configure UmiJs own code splitting function, use the code splitting provided by this plugin`);
     }
     pagesConfig = (0, import_utils2.findPagesConfig)(manifestBaseJson, pluginConfig, memo.mpa.entry, vendorEntry);
     outputPath = memo.outputPath || "dist";
@@ -163,16 +163,16 @@ var src_default = (api) => {
     if (err)
       return;
     (0, import_utils2.firstWriteManifestV3Json)(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
-    import_utils.logger.info("Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.");
-    import_utils.logger.info("请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。");
-    import_utils.logger.ready(`Build Complete. Load from: `, import_utils.chalk.green(import_path.default.resolve(outputPath)));
+    import_utils.logger.info(`${import_interface.PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
+    import_utils.logger.info(`${import_interface.PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
+    import_utils.logger.ready(`${import_interface.PluginName} Build Complete. Load from: `, import_utils.chalk.green(import_path.default.resolve(outputPath)));
   });
   api.onDevCompileDone(({ isFirstCompile, stats }) => {
     if (isFirstCompile) {
       (0, import_utils2.firstWriteManifestV3Json)(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
-      import_utils.logger.info("Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.");
-      import_utils.logger.info("首次开发编译完成。请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。");
-      import_utils.logger.ready(`Dev Compile Complete. Load from: `, import_utils.chalk.green(import_path.default.resolve(outputPath)));
+      import_utils.logger.info(`${import_interface.PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
+      import_utils.logger.info(`${import_interface.PluginName} 首次开发编译完成。请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
+      import_utils.logger.ready(`${import_interface.PluginName} Dev Compile Complete. Load from: `, import_utils.chalk.green(import_path.default.resolve(outputPath)));
     }
   });
   api.onGenerateFiles(({ isFirstTime, files }) => {
@@ -182,7 +182,7 @@ var src_default = (api) => {
           if (path.includes(manifestSourcePath) && event === "change") {
             manifestBaseJson = (0, import_utils2.loadManifestBaseJson)(manifestSourcePath, pluginConfig);
             (0, import_utils2.writeManifestV3Json)(manifestBaseJson, outputPath, pagesConfig);
-            import_utils.logger.info(`write manifest.json file successful.`);
+            import_utils.logger.info(`${import_interface.PluginName} Update and write manifest.json file successfully.`);
           }
         }
       }

@@ -72,8 +72,8 @@ export default (api: IApi) => {
         }
         if (memo.codeSplitting) {
             memo.codeSplitting = null;
-            logger.warn('请勿配置UMI自带代码分割功能,需使用本插件提供的代码分割');
-            logger.warn('Please do not configure UMI own code splitting function, use the code splitting provided by this plugin')
+            logger.warn(`${PluginName} 请勿配置UmiJs自带代码分割功能,需使用本插件提供的代码分割`);
+            logger.warn(`${PluginName} Please do not configure UmiJs own code splitting function, use the code splitting provided by this plugin`)
         }
         pagesConfig = findPagesConfig(manifestBaseJson, pluginConfig, memo.mpa.entry, vendorEntry);
         outputPath = memo.outputPath || "dist";
@@ -125,7 +125,6 @@ export default (api: IApi) => {
                 // 同时也要移除热更新插件
                 return !(!hasOpenHMR && plugin.constructor.name === 'HotModuleReplacementPlugin');
             });
-            // memo.plugins.push(new OutputWebpackPlugin());
         }
         if (enableSplitChunks) {
             const backgroundEntry = Object.values(pagesConfig).find(config => config.type === 'background')?.entry;
@@ -155,17 +154,17 @@ export default (api: IApi) => {
         if (err) return;
         firstWriteManifestV3Json(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
         // writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
-        logger.info("Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.");
-        logger.info("请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。");
-        logger.ready(`Build Complete. Load from: `, chalk.green(Path.resolve(outputPath)));
+        logger.info(`${PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
+        logger.info(`${PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
+        logger.ready(`${PluginName} Build Complete. Load from: `, chalk.green(Path.resolve(outputPath)));
     });
 
     api.onDevCompileDone(({isFirstCompile, stats}) => {
         if (isFirstCompile) {
             firstWriteManifestV3Json(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
-            logger.info("Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.");
-            logger.info("首次开发编译完成。请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。");
-            logger.ready(`Dev Compile Complete. Load from: `, chalk.green(Path.resolve(outputPath)));
+            logger.info(`${PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
+            logger.info(`${PluginName} 首次开发编译完成。请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
+            logger.ready(`${PluginName} Dev Compile Complete. Load from: `, chalk.green(Path.resolve(outputPath)));
         }
     });
 
@@ -176,7 +175,7 @@ export default (api: IApi) => {
                     if (path.includes(manifestSourcePath) && event === 'change') {
                         manifestBaseJson = loadManifestBaseJson(manifestSourcePath, pluginConfig);
                         writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
-                        logger.info(`write manifest.json file successful.`);
+                        logger.info(`${PluginName} Update and write manifest.json file successfully.`);
                     }
                 }
             }
