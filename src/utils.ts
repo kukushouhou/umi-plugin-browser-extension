@@ -158,21 +158,30 @@ function loadPopupConfig(manifestBaseJson: { [k: string]: any }, file: string, p
 }
 
 function completionContentScriptsConfig(assets: webpack.StatsAsset[], pageConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string) {
+    const vendorAsset = assets.find((asset) => vendorEntry && asset.name.startsWith(`${vendorEntry}.`));
     // 如果pageConfig的content_script没有js或css，则从assets中自动补全
     Object.values(pageConfig).forEach((entryConfig) => {
         const {type, entry, config} = entryConfig;
         if (type === 'content_script') {
-            for (const asset of assets) {
-                if (asset.name.startsWith(`${entry}.`)) {
-                    if (asset.name.endsWith('.js') && !('js' in config)) {
-                        config.js = [asset.name];
-                        if (vendorEntry) {
-                            config.js.unshift(`${vendorEntry}.js`);
+            const initJs = 'js' in config;
+            if (!initJs || !('css' in config)) {
+                for (const asset of assets) {
+                    if (asset.name.startsWith(`${entry}.`)) {
+                        if (asset.name.endsWith('.js') && !('js' in config)) {
+                            if (vendorAsset) {
+                                config.js = [vendorAsset.name, asset.name];
+                            } else {
+                                config.js = [asset.name];
+                            }
+                        } else if (asset.name.endsWith('.css') && !('css' in config)) {
+                            config.css = [asset.name];
                         }
-                    } else if (asset.name.endsWith('.css') && !('css' in config)) {
-                        config.css = [asset.name];
                     }
                 }
+            }
+            if (initJs && !vendorAsset) {
+                //如果没有vendor.js，则从content_script中自动移除vendor.js
+                config.js = config.js.filter((entry: string) => !entry.startsWith(`${vendorEntry}.`));
             }
         }
     });
