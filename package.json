@@ -1,6 +1,6 @@
 {
   "name": "umi-plugin-browser-extension",
-  "description": "UmiJs v4 plugin: chromium or firefox extension development",
+  "description": "UmiJs v4 plugin: browser extension development",
   "author": "Kukushouhou <1@kukushouhou.com>",
   "version": "0.0.1",
   "main": "dist/cjs/index.js",
