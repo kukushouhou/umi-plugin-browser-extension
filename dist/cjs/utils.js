@@ -191,20 +191,28 @@ function loadPopupConfig(manifestBaseJson, file, pluginConfig, umiMpaEntryConfig
   return entryConfig;
 }
 function completionContentScriptsConfig(assets, pageConfig, vendorEntry) {
+  const vendorAsset = assets.find((asset) => vendorEntry && asset.name.startsWith(`${vendorEntry}.`));
   Object.values(pageConfig).forEach((entryConfig) => {
     const { type, entry, config } = entryConfig;
     if (type === "content_script") {
-      for (const asset of assets) {
-        if (asset.name.startsWith(`${entry}.`)) {
-          if (asset.name.endsWith(".js") && !("js" in config)) {
-            config.js = [asset.name];
-            if (vendorEntry) {
-              config.js.unshift(`${vendorEntry}.js`);
+      const initJs = "js" in config;
+      if (!initJs || !("css" in config)) {
+        for (const asset of assets) {
+          if (asset.name.startsWith(`${entry}.`)) {
+            if (asset.name.endsWith(".js") && !("js" in config)) {
+              if (vendorAsset) {
+                config.js = [vendorAsset.name, asset.name];
+              } else {
+                config.js = [asset.name];
+              }
+            } else if (asset.name.endsWith(".css") && !("css" in config)) {
+              config.css = [asset.name];
             }
-          } else if (asset.name.endsWith(".css") && !("css" in config)) {
-            config.css = [asset.name];
           }
         }
+      }
+      if (initJs && !vendorAsset) {
+        config.js = config.js.filter((entry2) => !entry2.startsWith(`${vendorEntry}.`));
       }
     }
   });
