@@ -2,8 +2,6 @@
 
 UmiJs v4 plugin: browser extension development
 
-Sure, here is the English version:
-
 This plugin allows you to develop browser extensions with UmiJS v4 using Manifest V3. It automatically scans for entry files for `content_scripts`, `background`, `options`, and `popup` based on convention-based routing. Additionally, it generates the corresponding `manifest.json` file.
 
 If you need to develop browser extensions with Manifest V2, please use [`umi-plugin-chromium-extension`](https://github.com/kukushouhou/umi-plugin-chromium-extension).
@@ -14,7 +12,7 @@ If you need to develop browser extensions with Manifest V2, please use [`umi-plu
 
 ## Example | 示例
 
-TODO...
+### [umi-browser-extension-example](https://github.com/kukushouhou/umi-browser-extension-example)
 
 ## Install | 安装
 
@@ -31,7 +29,7 @@ Configure in `.umirc.ts` or `.umirc.js`,
 ```js
 export default {
     plugins: [
-        ['umi-plugin-browser-extension'],
+        'umi-plugin-browser-extension',
     ],
     browserExtension: {
         ...options
@@ -62,7 +60,7 @@ export default {
 
 ### Guidelines for writing the `manifest.json` source file. | `manifest.json`源文件编写说明
 
-In the folder corresponding to the `manifestFilePath` configuration option, create a `manifest.json` file. By default, it is located in the project root directory. See [manifest.json](https://developer.chrome.com/docs/extensions/reference/manifest?hl=zh-cn).  
+In the folder corresponding to the `manifestFilePath` configuration option, create a `manifest.json` file. By default, it is located in the project root directory. See [manifest.json](https://developer.chrome.com/docs/extensions/reference/manifest).  
 在`manifestFilePath`配置项对应的文件夹中创建`manifest.json`文件，默认情况下为项目根路径。详见[manifest.json](https://developer.chrome.com/docs/extensions/reference/manifest?hl=zh-cn)。
 
 #### Do not need to fill in the following fields in manifest.json: | 不需要在`manifest.json`中填写字段:

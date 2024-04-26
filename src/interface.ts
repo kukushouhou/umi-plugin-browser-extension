@@ -1,6 +1,6 @@
 import Path from "path";
 
-export const PluginName = "umi-browser-extension";
+export const PluginName = "[umi-browser-extension]";
 
 // 排除组件文件夹名
 export const F_EXCLUDE_COMPONENTS = `${Path.posix.sep}components${Path.posix.sep}`;
