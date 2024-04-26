@@ -1,8 +1,9 @@
 {
   "name": "umi-plugin-browser-extension",
+  "homepage": "https://github.com/kukushouhou/umi-plugin-browser-extension",
   "description": "UmiJs v4 plugin: browser extension development",
   "author": "Kukushouhou <1@kukushouhou.com>",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "main": "dist/cjs/index.js",
   "types": "dist/cjs/index.d.ts",
   "scripts": {
@@ -14,10 +15,20 @@
     "name": "Kukushouhou <1@kukushouhou.com>",
     "email": "1@kukushouhou.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/kukushouhou/umi-plugin-browser-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kukushouhou/umi-plugin-browser-extension/issues"
+  },
   "license": "MIT",
   "files": [
     "dist"
   ],
+  "peerDependencies": {
+    "umi": "4.x"
+  },
   "devDependencies": {
     "@types/node": "^18.19.24",
     "@umijs/utils": "^4.1.2",
