@@ -1,4 +1,4 @@
-export declare const PluginName = "umi-browser-extension";
+export declare const PluginName = "[umi-browser-extension]";
 export declare const F_EXCLUDE_COMPONENTS: string;
 export declare const F_EXCLUDE_MODELS: string;
 export declare const F_EXCLUDE_UTILS: string;

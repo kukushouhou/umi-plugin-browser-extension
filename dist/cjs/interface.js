@@ -37,7 +37,7 @@ __export(interface_exports, {
 });
 module.exports = __toCommonJS(interface_exports);
 var import_path = __toESM(require("path"));
-var PluginName = "umi-browser-extension";
+var PluginName = "[umi-browser-extension]";
 var F_EXCLUDE_COMPONENTS = `${import_path.default.posix.sep}components${import_path.default.posix.sep}`;
 var F_EXCLUDE_MODELS = `${import_path.default.posix.sep}models${import_path.default.posix.sep}`;
 var F_EXCLUDE_UTILS = `${import_path.default.posix.sep}utils${import_path.default.posix.sep}`;
