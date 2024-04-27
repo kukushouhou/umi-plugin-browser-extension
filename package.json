@@ -3,7 +3,7 @@
   "homepage": "https://github.com/kukushouhou/umi-plugin-browser-extension",
   "description": "UmiJs v4 plugin: browser extension development",
   "author": "Kukushouhou <1@kukushouhou.com>",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist/cjs/index.js",
   "types": "dist/cjs/index.d.ts",
   "scripts": {

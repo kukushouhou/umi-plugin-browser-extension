@@ -116,6 +116,12 @@ If you have filled in the `js` and `css` fields, you only need to provide relati
 
 若填写了`js`和`css`字段，请只填写相对当前文件夹的相对路径即可，本插件将会根据配置自动完善前缀，若设定了切割代码也会自动将切割后的`vendor.js`文件加入配置。
 
+## TODO | 待实现
+
+- [ ] 内容脚本若处在主要运行时时单独切割代码或则不切割代码,主要运行时的代码主要负责调用页面本身上下文无法使用各种扩展Api
+- [ ] 监听内容脚本配置的改变并更新到构建产物的manifest.json中
+- [ ] 检测到新增任何入口后自动重启umijs处理
+
 ## LICENSE
 
 MIT
