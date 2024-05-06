@@ -125,6 +125,6 @@ If you have filled in the `js` and `css` fields, you only need to provide relati
 - [ ] 内容脚本的matches中支持填入变量 <folder_matches_urls>, 若填入该变量效果和<matches_urls>一样, 但只会合并当前入口父级目录下的全部内容脚本中设定的matches
 - [ ] web_accessible_resources的动态管理，允许在内容脚本的入口同级目录下创建resources.json文件来动态配置web_accessible_resources，也允许在源manifest.json中统一配置web_accessible_resources，若源manifest.json中配置了web_accessible_resources，且内容脚本中包含resources.json配置则会追加在源manifest.json中配置的web_accessible_resources的后面
 
-## LICENSE
+## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
