@@ -135,7 +135,7 @@ export default (api: IApi) => {
                     cacheGroups: {
                         vendor: {
                             chunks: backgroundEntry ? (chunk) => chunk.name !== backgroundEntry : 'all',
-                            test: /\.[j|t]sx*$/,
+                            test: /\.(jsx?|tsx?|json)$/,
                             name: vendorEntry,
                             minChunks: 2, //使用操作两次就可以提取到vendor,因为插件本地化不用在意单个文件的大小,因此这里设置成2
                             priority: 1,

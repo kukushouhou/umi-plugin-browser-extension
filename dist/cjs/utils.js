@@ -190,32 +190,49 @@ function loadPopupConfig(manifestBaseJson, file, pluginConfig, umiMpaEntryConfig
   completionUmiMpaEntryConfig(entryConfig, umiMpaEntryConfig);
   return entryConfig;
 }
-function completionContentScriptsConfig(assets, pageConfig, vendorEntry) {
-  const vendorAsset = assets.find((asset) => vendorEntry && asset.name.startsWith(`${vendorEntry}.`));
-  Object.values(pageConfig).forEach((entryConfig) => {
-    const { type, entry, config } = entryConfig;
-    if (type === "content_script") {
-      const initJs = "js" in config;
-      if (!initJs || !("css" in config)) {
-        for (const asset of assets) {
-          if (asset.name.startsWith(`${entry}.`)) {
-            if (asset.name.endsWith(".js") && !("js" in config)) {
-              if (vendorAsset) {
-                config.js = [vendorAsset.name, asset.name];
-              } else {
-                config.js = [asset.name];
+function completionContentScriptsConfig(statsData, pageConfig, vendorEntry) {
+  if (statsData.entrypoints && statsData.chunks) {
+    for (const { type, entry, config } of Object.values(pageConfig)) {
+      if (type === "content_script") {
+        const existJs = "js" in config && config.js.length > 0;
+        const existCss = "css" in config && config.css.length > 0;
+        if (entry in statsData.entrypoints) {
+          const entryPoint = statsData.entrypoints[entry];
+          if (entryPoint.chunks) {
+            let existVendor = false;
+            for (const chunkId of entryPoint.chunks) {
+              const chunk = statsData.chunks.find((c) => c.id === chunkId);
+              if (chunk && chunk.files) {
+                for (const file of chunk.files) {
+                  if (file.endsWith(".js")) {
+                    if (!existJs) {
+                      if (!("js" in config)) {
+                        config.js = [];
+                      }
+                      config.js.push(file);
+                    }
+                    if (file.startsWith(`${vendorEntry}.`)) {
+                      existVendor = true;
+                    }
+                  } else if (file.endsWith(".css")) {
+                    if (!existCss) {
+                      if (!("css" in config)) {
+                        config.css = [];
+                      }
+                      config.css.push(file);
+                    }
+                  }
+                }
               }
-            } else if (asset.name.endsWith(".css") && !("css" in config)) {
-              config.css = [asset.name];
+            }
+            if (existJs && vendorEntry && !existVendor) {
+              config.js = config.js.filter((file) => !file.startsWith(`${vendorEntry}.`));
             }
           }
         }
       }
-      if (initJs && !vendorAsset) {
-        config.js = config.js.filter((entry2) => !entry2.startsWith(`${vendorEntry}.`));
-      }
     }
-  });
+  }
 }
 function completionUmiMpaEntryConfig(extensionEntryConfig, umiMpaEntryConfig) {
   const { name, entry } = extensionEntryConfig;
@@ -292,9 +309,9 @@ function completionManifestV3Json(manifestBaseJson, pagesConfig) {
   return manifestJson;
 }
 function firstWriteManifestV3Json(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry) {
-  const { assets } = stats.toJson();
-  if (assets) {
-    completionContentScriptsConfig(assets, pagesConfig, vendorEntry);
+  const statsData = stats.toJson({ all: true });
+  if (statsData.chunks) {
+    completionContentScriptsConfig(statsData, pagesConfig, vendorEntry);
   }
   writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
 }

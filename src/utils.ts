@@ -157,34 +157,51 @@ function loadPopupConfig(manifestBaseJson: { [k: string]: any }, file: string, p
     return entryConfig;
 }
 
-function completionContentScriptsConfig(assets: webpack.StatsAsset[], pageConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string) {
-    const vendorAsset = assets.find((asset) => vendorEntry && asset.name.startsWith(`${vendorEntry}.`));
+function completionContentScriptsConfig(statsData: webpack.StatsCompilation, pageConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string) {
     // 如果pageConfig的content_script没有js或css，则从assets中自动补全
-    Object.values(pageConfig).forEach((entryConfig) => {
-        const {type, entry, config} = entryConfig;
-        if (type === 'content_script') {
-            const initJs = 'js' in config;
-            if (!initJs || !('css' in config)) {
-                for (const asset of assets) {
-                    if (asset.name.startsWith(`${entry}.`)) {
-                        if (asset.name.endsWith('.js') && !('js' in config)) {
-                            if (vendorAsset) {
-                                config.js = [vendorAsset.name, asset.name];
-                            } else {
-                                config.js = [asset.name];
+    if (statsData.entrypoints && statsData.chunks) {
+        for (const {type, entry, config} of Object.values(pageConfig)) {
+            if (type === 'content_script') {
+                const existJs = 'js' in config && config.js.length > 0;
+                const existCss = 'css' in config && config.css.length > 0;
+                if (entry in statsData.entrypoints) {
+                    const entryPoint = statsData.entrypoints[entry];
+                    if (entryPoint.chunks) {
+                        let existVendor = false;
+                        for (const chunkId of entryPoint.chunks) {
+                            const chunk = statsData.chunks.find(c => c.id === chunkId);
+                            if (chunk && chunk.files) {
+                                for (const file of chunk.files) {
+                                    if (file.endsWith('.js')) {
+                                        if (!existJs) {
+                                            if (!('js' in config)) {
+                                                config.js = [];
+                                            }
+                                            config.js.push(file);
+                                        }
+                                        if (file.startsWith(`${vendorEntry}.`)) {
+                                            existVendor = true;
+                                        }
+                                    } else if (file.endsWith('.css')) {
+                                        if (!existCss) {
+                                            if (!('css' in config)) {
+                                                config.css = [];
+                                            }
+                                            config.css.push(file);
+                                        }
+                                    }
+                                }
                             }
-                        } else if (asset.name.endsWith('.css') && !('css' in config)) {
-                            config.css = [asset.name];
+                        }
+                        if (existJs && vendorEntry && !existVendor) {
+                            // 如果用户自行配置了js,且当前启用了代码切割,且实际入口没有生成vendor.js,则从配置中移除vendor.js
+                            config.js = config.js.filter((file: string) => !file.startsWith(`${vendorEntry}.`));
                         }
                     }
                 }
             }
-            if (initJs && !vendorAsset) {
-                //如果没有vendor.js，则从content_script中自动移除vendor.js
-                config.js = config.js.filter((entry: string) => !entry.startsWith(`${vendorEntry}.`));
-            }
         }
-    });
+    }
 }
 
 function completionUmiMpaEntryConfig(extensionEntryConfig: browserExtensionEntryConfig, umiMpaEntryConfig: { [k: string]: any }) {
@@ -270,9 +287,9 @@ export function completionManifestV3Json(manifestBaseJson: { [k: string]: any },
 }
 
 export function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string) {
-    const {assets} = stats.toJson();
-    if (assets) {
-        completionContentScriptsConfig(assets, pagesConfig, vendorEntry);
+    const statsData = stats.toJson({all: true});
+    if (statsData.chunks) {
+        completionContentScriptsConfig(statsData, pagesConfig, vendorEntry);
     }
     writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
 }
