@@ -31,7 +31,10 @@ export function findPagesConfig(manifestBaseJson: { [k: string]: any }, pluginCo
     const popupPath = Path.posix.join(rootPath, popupPathName);
     const result: { [path: string]: browserExtensionEntryConfig } = {};
     for (const entry of findFileGroup(contentScriptsPath, entryFileName)) {
-        result[entry] = loadContentScriptsConfig(entry, pluginConfig, umiMpaEntryConfig, vendorEntry);
+        const config = loadContentScriptsConfig(entry, pluginConfig, umiMpaEntryConfig, vendorEntry);
+        if (config) {
+            result[entry] = config;
+        }
     }
     const backgroundEntry = findFileGroup(backgroundPath, entryFileName);
     if (backgroundEntry.length === 1) {
@@ -57,7 +60,7 @@ export function findPagesConfig(manifestBaseJson: { [k: string]: any }, pluginCo
     return result;
 }
 
-function loadContentScriptsConfig(entry: string, pluginConfig: browserExtensionConfig, umiMpaEntryConfig: { [k: string]: any }, vendorEntry: string): browserExtensionEntryConfig {
+function loadContentScriptsConfig(entry: string, pluginConfig: browserExtensionConfig, umiMpaEntryConfig: { [k: string]: any }, vendorEntry: string): browserExtensionEntryConfig | null {
     const {rootPath, configFileName, encoding, jsCssOutputDir} = pluginConfig;
     const path = Path.posix.dirname(entry);
     const mpaName = path.replace(`${rootPath}${Path.posix.sep}`, '');
@@ -65,19 +68,20 @@ function loadContentScriptsConfig(entry: string, pluginConfig: browserExtensionC
     const jsCssOutputPath = Path.posix.join(jsCssOutputDir, mpaName);
     let config: { [key: string]: any } = {};
     let title: string | undefined = undefined;
-    if (Fs.existsSync(configPath)) {
-        config = JSON.parse(Fs.readFileSync(configPath, {encoding}).toString());
-        title = config.title;
-        delete config.title;
-        if ('js' in config) {
-            completionFilePathFromNameList(jsCssOutputPath, config.js);
-            if (vendorEntry) {
-                config.js.unshift(`${vendorEntry}.js`);
-            }
+    if (!Fs.existsSync(configPath)) {
+        return null;
+    }
+    config = JSON.parse(Fs.readFileSync(configPath, {encoding}).toString());
+    title = config.title;
+    delete config.title;
+    if ('js' in config) {
+        completionFilePathFromNameList(jsCssOutputPath, config.js);
+        if (vendorEntry) {
+            config.js.unshift(`${vendorEntry}.js`);
         }
-        if ('css' in config) {
-            completionFilePathFromNameList(jsCssOutputPath, config.css);
-        }
+    }
+    if ('css' in config) {
+        completionFilePathFromNameList(jsCssOutputPath, config.css);
     }
     const entryConfig: browserExtensionEntryConfig = {
         name: mpaName,
