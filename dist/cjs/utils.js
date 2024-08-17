@@ -198,7 +198,6 @@ function loadPopupConfig(manifestBaseJson, file, pluginConfig, umiMpaEntryConfig
 }
 function completionContentScriptsConfig(statsData, pageConfig, vendorEntry) {
   if (statsData.entrypoints && statsData.chunks) {
-    debugger;
     for (const { type, entry, config } of Object.values(pageConfig)) {
       if (type === "content_script") {
         const existJs = "js" in config && config.js.length > 0;

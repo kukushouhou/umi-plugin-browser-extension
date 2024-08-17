@@ -165,7 +165,6 @@ function loadPopupConfig(manifestBaseJson: { [k: string]: any }, file: string, p
 function completionContentScriptsConfig(statsData: webpack.StatsCompilation, pageConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string) {
     // 如果pageConfig的content_script没有js或css，则从assets中自动补全
     if (statsData.entrypoints && statsData.chunks) {
-        debugger;
         for (const {type, entry, config} of Object.values(pageConfig)) {
             if (type === 'content_script') {
                 const existJs = 'js' in config && config.js.length > 0;
