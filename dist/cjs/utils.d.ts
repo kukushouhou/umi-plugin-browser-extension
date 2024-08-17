@@ -41,4 +41,5 @@ export declare function removeFileOrDirSync(filePath: string): void;
  * @returns {string} - The POSIX style path.
  */
 export declare function toPosixPath(inputPath: string): string;
+export declare function splitChunksFilter(backgroundEntry: string | undefined, mainWorldEntryGroup: browserExtensionEntryConfig[], matchMainWorldEntry: boolean): 'all' | ((chunk: webpack.Chunk) => boolean);
 //# sourceMappingURL=utils.d.ts.map

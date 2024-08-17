@@ -139,20 +139,31 @@ var src_default = (api) => {
     }
     if (enableSplitChunks) {
       const backgroundEntry = (_a = Object.values(pagesConfig).find((config) => config.type === "background")) == null ? void 0 : _a.entry;
+      const mainWorldEntryGroup = Object.values(pagesConfig).filter((config) => config.type === "content_script" && config.world === "MAIN");
+      const cacheGroups = {};
+      cacheGroups["vendor"] = {
+        chunks: (0, import_utils2.splitChunksFilter)(backgroundEntry, mainWorldEntryGroup, false),
+        test: /\.(jsx?|tsx?|json)$/,
+        name: vendorEntry,
+        minChunks: 2,
+        //使用操作两次就可以提取到vendor,因为插件本地化不用在意单个文件的大小,因此这里设置成2
+        priority: 1
+      };
+      if (mainWorldEntryGroup.length > 0) {
+        cacheGroups["vendor-main"] = {
+          chunks: (0, import_utils2.splitChunksFilter)(backgroundEntry, mainWorldEntryGroup, true),
+          test: /\.(jsx?|tsx?|json)$/,
+          name: `${vendorEntry}-main`,
+          minChunks: 2,
+          //使用操作两次就可以提取到vendor,因为插件本地化不用在意单个文件的大小,因此这里设置成2
+          priority: 1
+        };
+      }
       memo.optimization = {
         ...memo.optimization,
         splitChunks: {
           //切割代码时排除background,background不能参与切割,因为引入background的js文件只支持单一文件引入
-          cacheGroups: {
-            vendor: {
-              chunks: backgroundEntry ? (chunk) => chunk.name !== backgroundEntry : "all",
-              test: /\.(jsx?|tsx?|json)$/,
-              name: vendorEntry,
-              minChunks: 2,
-              //使用操作两次就可以提取到vendor,因为插件本地化不用在意单个文件的大小,因此这里设置成2
-              priority: 1
-            }
-          },
+          cacheGroups,
           ...typeof splitChunks === "object" ? splitChunks : {}
         }
       };

@@ -30,6 +30,7 @@ export interface browserExtensionEntryConfig {
     file: string;
     entry: string;
     type: 'content_script' | 'options' | 'background' | 'popup';
+    world?: '' | 'MAIN';
     title?: string;
     config: {
         [k: string]: any;

@@ -118,7 +118,7 @@ If you have filled in the `js` and `css` fields, you only need to provide relati
 
 ## TODO | 待实现
 
-- [ ] 内容脚本若处在主要运行时时单独切割代码或则不切割代码,主要运行时的代码主要负责调用页面本身上下文无法使用各种扩展Api
+- [x] 内容脚本若处在主要运行时时单独切割代码或则不切割代码,主要运行时的代码主要负责调用页面本身上下文无法使用各种扩展Api
 - [ ] 监听内容脚本配置的改变并更新到构建产物的manifest.json中
 - [ ] 检测到新增任何入口后自动重启umijs处理
 - [ ] host_permissions、web_accessible_resources和内容脚本的matches中支持填入变量 <matches_urls>, 若填入该变量则最终输出的manifest.json中该变量自动替换为其他已找到的内容脚本全部匹配的url,但会忽略其他内容脚本定义的exclude_matches,include_globs,exclude_globs

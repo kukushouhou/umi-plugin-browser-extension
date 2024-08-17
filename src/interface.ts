@@ -53,6 +53,7 @@ export interface browserExtensionEntryConfig {
     file: string;
     entry: string; // webpack里面的entry名称
     type: 'content_script' | 'options' | 'background' | 'popup';
+    world?: '' | 'MAIN';
     title?: string;
     config: { [k: string]: any };
 }

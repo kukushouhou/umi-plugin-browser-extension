@@ -90,7 +90,8 @@ function loadContentScriptsConfig(entry: string, pluginConfig: browserExtensionC
         entry: completionEntry(mpaName, pluginConfig),
         title: title,
         type: 'content_script',
-        config: config
+        config: config,
+        world: config.world ?? ''
     };
     completionUmiMpaEntryConfig(entryConfig, umiMpaEntryConfig)
     return entryConfig;
@@ -164,6 +165,7 @@ function loadPopupConfig(manifestBaseJson: { [k: string]: any }, file: string, p
 function completionContentScriptsConfig(statsData: webpack.StatsCompilation, pageConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string) {
     // 如果pageConfig的content_script没有js或css，则从assets中自动补全
     if (statsData.entrypoints && statsData.chunks) {
+        debugger;
         for (const {type, entry, config} of Object.values(pageConfig)) {
             if (type === 'content_script') {
                 const existJs = 'js' in config && config.js.length > 0;
@@ -362,4 +364,21 @@ export function toPosixPath(inputPath: string): string {
 
     // Convert path separators to POSIX style forward slashes
     return normalizedPath.split(Path.sep).join(Path.posix.sep);
+}
+
+
+export function splitChunksFilter(backgroundEntry: string | undefined, mainWorldEntryGroup: browserExtensionEntryConfig[], matchMainWorldEntry: boolean): 'all' | ((chunk: webpack.Chunk) => boolean) {
+    // const backgroundEntry = Object.values(pagesConfig).find(config => config.type === 'background')?.entry;
+    // const mainWorldEntryGroup = Object.values(pagesConfig).filter(config => config.type === 'content_script' && config.world === 'MAIN');
+
+    if (!backgroundEntry && mainWorldEntryGroup.length === 0) {
+        return 'all';
+    }
+
+    return (chunk: webpack.Chunk) => {
+        if (matchMainWorldEntry) {
+            return mainWorldEntryGroup.some(entry => entry.entry === chunk.name);
+        }
+        return !(chunk.name === backgroundEntry || mainWorldEntryGroup.some(entry => entry.entry === chunk.name));
+    }
 }

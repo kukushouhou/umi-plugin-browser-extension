@@ -2,7 +2,7 @@ import type {IApi} from 'umi';
 import {chalk, logger} from "@umijs/utils";
 import Path from "path";
 import {browserExtensionDefaultConfig, browserExtensionEntryConfig, PluginName} from "./interface";
-import {completionManifestPath, completionWebpackEntryConfig, findPagesConfig, firstWriteManifestV3Json, initPluginConfig, loadManifestBaseJson, removeFileOrDirSync, writeManifestV3Json} from "./utils";
+import {completionManifestPath, completionWebpackEntryConfig, findPagesConfig, firstWriteManifestV3Json, initPluginConfig, loadManifestBaseJson, removeFileOrDirSync, splitChunksFilter, writeManifestV3Json} from "./utils";
 
 
 export default (api: IApi) => {
@@ -128,19 +128,30 @@ export default (api: IApi) => {
         }
         if (enableSplitChunks) {
             const backgroundEntry = Object.values(pagesConfig).find(config => config.type === 'background')?.entry;
+            const mainWorldEntryGroup = Object.values(pagesConfig).filter(config => config.type === 'content_script' && config.world === 'MAIN');
+
+            const cacheGroups: { [k: string]: any } = {};
+            cacheGroups['vendor'] = {
+                chunks: splitChunksFilter(backgroundEntry, mainWorldEntryGroup, false),
+                test: /\.(jsx?|tsx?|json)$/,
+                name: vendorEntry,
+                minChunks: 2, //使用操作两次就可以提取到vendor,因为插件本地化不用在意单个文件的大小,因此这里设置成2
+                priority: 1,
+            };
+            if (mainWorldEntryGroup.length > 0) {
+                cacheGroups['vendor-main'] = {
+                    chunks: splitChunksFilter(backgroundEntry, mainWorldEntryGroup, true),
+                    test: /\.(jsx?|tsx?|json)$/,
+                    name: `${vendorEntry}-main`,
+                    minChunks: 2, //使用操作两次就可以提取到vendor,因为插件本地化不用在意单个文件的大小,因此这里设置成2
+                    priority: 1,
+                }
+            }
             memo.optimization = {
                 ...memo.optimization,
                 splitChunks: {
                     //切割代码时排除background,background不能参与切割,因为引入background的js文件只支持单一文件引入
-                    cacheGroups: {
-                        vendor: {
-                            chunks: backgroundEntry ? (chunk) => chunk.name !== backgroundEntry : 'all',
-                            test: /\.(jsx?|tsx?|json)$/,
-                            name: vendorEntry,
-                            minChunks: 2, //使用操作两次就可以提取到vendor,因为插件本地化不用在意单个文件的大小,因此这里设置成2
-                            priority: 1,
-                        },
-                    },
+                    cacheGroups: cacheGroups,
                     ...(typeof splitChunks === "object" ? splitChunks : {}),
                 }
             }

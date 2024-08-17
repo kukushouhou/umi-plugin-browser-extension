@@ -37,6 +37,7 @@ __export(utils_exports, {
   initPluginConfig: () => initPluginConfig,
   loadManifestBaseJson: () => loadManifestBaseJson,
   removeFileOrDirSync: () => removeFileOrDirSync,
+  splitChunksFilter: () => splitChunksFilter,
   toPosixPath: () => toPosixPath,
   writeManifestV3Json: () => writeManifestV3Json
 });
@@ -69,7 +70,10 @@ function findPagesConfig(manifestBaseJson, pluginConfig, umiMpaEntryConfig, vend
   const popupPath = import_path.default.posix.join(rootPath, popupPathName);
   const result = {};
   for (const entry of findFileGroup(contentScriptsPath, entryFileName)) {
-    result[entry] = loadContentScriptsConfig(entry, pluginConfig, umiMpaEntryConfig, vendorEntry);
+    const config = loadContentScriptsConfig(entry, pluginConfig, umiMpaEntryConfig, vendorEntry);
+    if (config) {
+      result[entry] = config;
+    }
   }
   const backgroundEntry = findFileGroup(backgroundPath, entryFileName);
   if (backgroundEntry.length === 1) {
@@ -102,19 +106,20 @@ function loadContentScriptsConfig(entry, pluginConfig, umiMpaEntryConfig, vendor
   const jsCssOutputPath = import_path.default.posix.join(jsCssOutputDir, mpaName);
   let config = {};
   let title = void 0;
-  if (import_fs.default.existsSync(configPath)) {
-    config = JSON.parse(import_fs.default.readFileSync(configPath, { encoding }).toString());
-    title = config.title;
-    delete config.title;
-    if ("js" in config) {
-      completionFilePathFromNameList(jsCssOutputPath, config.js);
-      if (vendorEntry) {
-        config.js.unshift(`${vendorEntry}.js`);
-      }
+  if (!import_fs.default.existsSync(configPath)) {
+    return null;
+  }
+  config = JSON.parse(import_fs.default.readFileSync(configPath, { encoding }).toString());
+  title = config.title;
+  delete config.title;
+  if ("js" in config) {
+    completionFilePathFromNameList(jsCssOutputPath, config.js);
+    if (vendorEntry) {
+      config.js.unshift(`${vendorEntry}.js`);
     }
-    if ("css" in config) {
-      completionFilePathFromNameList(jsCssOutputPath, config.css);
-    }
+  }
+  if ("css" in config) {
+    completionFilePathFromNameList(jsCssOutputPath, config.css);
   }
   const entryConfig = {
     name: mpaName,
@@ -123,7 +128,8 @@ function loadContentScriptsConfig(entry, pluginConfig, umiMpaEntryConfig, vendor
     entry: completionEntry(mpaName, pluginConfig),
     title,
     type: "content_script",
-    config
+    config,
+    world: config.world ?? ""
   };
   completionUmiMpaEntryConfig(entryConfig, umiMpaEntryConfig);
   return entryConfig;
@@ -192,6 +198,7 @@ function loadPopupConfig(manifestBaseJson, file, pluginConfig, umiMpaEntryConfig
 }
 function completionContentScriptsConfig(statsData, pageConfig, vendorEntry) {
   if (statsData.entrypoints && statsData.chunks) {
+    debugger;
     for (const { type, entry, config } of Object.values(pageConfig)) {
       if (type === "content_script") {
         const existJs = "js" in config && config.js.length > 0;
@@ -357,6 +364,17 @@ function toPosixPath(inputPath) {
   const normalizedPath = import_path.default.normalize(inputPath);
   return normalizedPath.split(import_path.default.sep).join(import_path.default.posix.sep);
 }
+function splitChunksFilter(backgroundEntry, mainWorldEntryGroup, matchMainWorldEntry) {
+  if (!backgroundEntry && mainWorldEntryGroup.length === 0) {
+    return "all";
+  }
+  return (chunk) => {
+    if (matchMainWorldEntry) {
+      return mainWorldEntryGroup.some((entry) => entry.entry === chunk.name);
+    }
+    return !(chunk.name === backgroundEntry || mainWorldEntryGroup.some((entry) => entry.entry === chunk.name));
+  };
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   completionManifestPath,
@@ -367,6 +385,7 @@ function toPosixPath(inputPath) {
   initPluginConfig,
   loadManifestBaseJson,
   removeFileOrDirSync,
+  splitChunksFilter,
   toPosixPath,
   writeManifestV3Json
 });
