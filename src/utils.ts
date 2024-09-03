@@ -1,4 +1,4 @@
-import {chalk, glob, logger} from '@umijs/utils'
+import {chalk, deepmerge, glob, logger} from '@umijs/utils'
 import {browserExtensionConfig, browserExtensionDefaultConfig, browserExtensionEntryConfig, F_EXCLUDE_COMPONENTS, F_EXCLUDE_MODELS, F_EXCLUDE_UTILS, PluginName, Target} from "./interface";
 import Path from "path";
 import Fs from "fs";
@@ -268,9 +268,10 @@ export function loadManifestTargetJson(manifestSourcePathBefore: string, targets
 }
 
 export function completionManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target) {
-    const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
+    let manifestJson: any = deepmerge.all([manifestBaseJson]);
+    // const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
     if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
-        Object.assign(manifestJson, manifestTargetsJson[target]);
+        manifestJson = deepmerge.all([manifestJson, manifestTargetsJson[target]]);
     }
     const contentScriptsConfig: { [k: string]: any }[] = [];
     for (const pageConfig of Object.values(pagesConfig)) {
@@ -320,8 +321,9 @@ export function completionManifestV3ToFirefox(manifestJson: any) {
         }
         if (manifestJson.background && manifestJson.background.service_worker && !manifestJson.background.scripts) {
             // firefox不支持service_worker,所以要把service_worker替换为scripts
-            manifestJson.background.scripts = [manifestJson.background.service_worker];
-            delete manifestJson.background.service_worker;
+            manifestJson.background = {
+                scripts: [manifestJson.background.service_worker]
+            }
         }
         if (manifestJson.incognito && manifestJson.incognito === 'split') {
             // firefox不支持incognito配置为split,如果配置为split则会自动降级到not_allowed,所以这里要把incognito替换为not_allowed

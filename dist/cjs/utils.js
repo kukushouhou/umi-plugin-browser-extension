@@ -297,9 +297,9 @@ function loadManifestTargetJson(manifestSourcePathBefore, targets, pluginConfig)
   return result;
 }
 function completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target) {
-  const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
+  let manifestJson = import_utils.deepmerge.all([manifestBaseJson]);
   if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
-    Object.assign(manifestJson, manifestTargetsJson[target]);
+    manifestJson = import_utils.deepmerge.all([manifestJson, manifestTargetsJson[target]]);
   }
   const contentScriptsConfig = [];
   for (const pageConfig of Object.values(pagesConfig)) {
@@ -344,8 +344,9 @@ function completionManifestV3ToFirefox(manifestJson) {
       manifestJson.permissions = manifestJson.permissions.filter((permission) => permission !== "commands");
     }
     if (manifestJson.background && manifestJson.background.service_worker && !manifestJson.background.scripts) {
-      manifestJson.background.scripts = [manifestJson.background.service_worker];
-      delete manifestJson.background.service_worker;
+      manifestJson.background = {
+        scripts: [manifestJson.background.service_worker]
+      };
     }
     if (manifestJson.incognito && manifestJson.incognito === "split") {
       manifestJson.incognito = "not_allowed";
