@@ -297,7 +297,7 @@ function loadManifestTargetJson(manifestSourcePathBefore, targets, pluginConfig)
   return result;
 }
 function completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target) {
-  const manifestJson = { ...manifestBaseJson };
+  const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
   if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
     Object.assign(manifestJson, manifestTargetsJson[target]);
   }

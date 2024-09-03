@@ -22,9 +22,7 @@ export declare function completionManifestV3Json(manifestBaseJson: {
     [k: string]: any;
 }, manifestTargetsJson: Partial<Record<Target, any>>, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
-}, target: Target): {
-    [x: string]: any;
-};
+}, target: Target): any;
 export declare function completionManifestV3ToFirefox(manifestJson: any): void;
 export declare function syncTargetsFiles(stats: webpack.Stats, outputPath: string, outputBasePath: string, targets: Target[]): void;
 export declare function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson: {

@@ -268,7 +268,7 @@ export function loadManifestTargetJson(manifestSourcePathBefore: string, targets
 }
 
 export function completionManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target) {
-    const manifestJson = {...manifestBaseJson};
+    const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
     if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
         Object.assign(manifestJson, manifestTargetsJson[target]);
     }
