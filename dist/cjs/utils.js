@@ -31,13 +31,18 @@ var utils_exports = {};
 __export(utils_exports, {
   completionManifestPath: () => completionManifestPath,
   completionManifestV3Json: () => completionManifestV3Json,
+  completionManifestV3ToFirefox: () => completionManifestV3ToFirefox,
   completionWebpackEntryConfig: () => completionWebpackEntryConfig,
+  copyFileOrDirSync: () => copyFileOrDirSync,
   findPagesConfig: () => findPagesConfig,
+  firstWriteAllFile: () => firstWriteAllFile,
   firstWriteManifestV3Json: () => firstWriteManifestV3Json,
   initPluginConfig: () => initPluginConfig,
   loadManifestBaseJson: () => loadManifestBaseJson,
+  loadManifestTargetJson: () => loadManifestTargetJson,
   removeFileOrDirSync: () => removeFileOrDirSync,
   splitChunksFilter: () => splitChunksFilter,
+  syncTargetsFiles: () => syncTargetsFiles,
   toPosixPath: () => toPosixPath,
   writeManifestV3Json: () => writeManifestV3Json
 });
@@ -278,8 +283,24 @@ function completionManifestPath(pluginConfig, resultAbsolutePath = false) {
 function loadManifestBaseJson(manifestSourcePath, pluginConfig) {
   return JSON.parse(import_fs.default.readFileSync(manifestSourcePath, { encoding: pluginConfig.encoding }).toString());
 }
-function completionManifestV3Json(manifestBaseJson, pagesConfig) {
+function loadManifestTargetJson(manifestSourcePathBefore, targets, pluginConfig) {
+  const result = {};
+  for (const target of targets) {
+    const targetSourcePath = `${manifestSourcePathBefore}.${target}.json`;
+    if (import_fs.default.existsSync(targetSourcePath)) {
+      const targetJson = JSON.parse(import_fs.default.readFileSync(targetSourcePath, { encoding: pluginConfig.encoding }).toString());
+      if (targetJson) {
+        result[target] = targetJson;
+      }
+    }
+  }
+  return result;
+}
+function completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target) {
   const manifestJson = { ...manifestBaseJson };
+  if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
+    Object.assign(manifestJson, manifestTargetsJson[target]);
+  }
   const contentScriptsConfig = [];
   for (const pageConfig of Object.values(pagesConfig)) {
     const { type, config } = pageConfig;
@@ -312,17 +333,60 @@ function completionManifestV3Json(manifestBaseJson, pagesConfig) {
   if (contentScriptsConfig.length > 0) {
     manifestJson.content_scripts = contentScriptsConfig;
   }
+  if (target === "firefox") {
+    completionManifestV3ToFirefox(manifestJson);
+  }
   return manifestJson;
 }
-function firstWriteManifestV3Json(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry) {
+function completionManifestV3ToFirefox(manifestJson) {
+  if (manifestJson) {
+    if (manifestJson.permissions && manifestJson.permissions.includes("commands")) {
+      manifestJson.permissions = manifestJson.permissions.filter((permission) => permission !== "commands");
+    }
+    if (manifestJson.background && manifestJson.background.service_worker && !manifestJson.background.scripts) {
+      manifestJson.background.scripts = [manifestJson.background.service_worker];
+      delete manifestJson.background.service_worker;
+    }
+    if (manifestJson.incognito && manifestJson.incognito === "split") {
+      manifestJson.incognito = "not_allowed";
+    }
+  }
+}
+function syncTargetsFiles(stats, outputPath, outputBasePath, targets) {
+  const changedFiles = stats.compilation.emittedAssets;
+  for (const changedFile of changedFiles) {
+    for (let i = 1; i < targets.length; i += 1) {
+      const target = targets[i];
+      const targetPath = import_path.default.posix.join(outputBasePath, target);
+      copyFileOrDirSync(import_path.default.posix.join(outputPath, changedFile), import_path.default.posix.join(targetPath, changedFile));
+    }
+  }
+}
+function firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets) {
+  if (targets.length > 1) {
+    for (let i = 1; i < targets.length; i += 1) {
+      const targetPath = import_path.default.posix.join(outputBasePath, targets[i]);
+      copyFileOrDirSync(outputPath, targetPath);
+      firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, vendorEntry, targets[i]);
+    }
+  }
+  firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, targets[0]);
+  import_utils.logger.info(`${import_interface.PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
+  import_utils.logger.info(`${import_interface.PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
+  for (const target of targets) {
+    const targetPath = import_path.default.posix.join(outputBasePath, target);
+    import_utils.logger.ready(`${import_interface.PluginName} Build Complete. ${target} browser load from: `, import_utils.chalk.green(import_path.default.resolve(targetPath)));
+  }
+}
+function firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, target) {
   const statsData = stats.toJson({ all: true });
   if (statsData.chunks) {
     completionContentScriptsConfig(statsData, pagesConfig, vendorEntry);
   }
-  writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
+  writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target);
 }
-function writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig) {
-  const manifestJson = completionManifestV3Json(manifestBaseJson, pagesConfig);
+function writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target) {
+  const manifestJson = completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target);
   import_fs.default.writeFileSync(import_path.default.posix.join(outputPath, "manifest.json"), JSON.stringify(manifestJson, null, 2));
 }
 function findFileGroup(pathBefore, fileName) {
@@ -341,6 +405,25 @@ function completionFilePathFromNameList(path, nameList) {
 function completionEntry(mpaName, pluginConfig) {
   const { jsCssOutputDir } = pluginConfig;
   return import_path.default.posix.join(jsCssOutputDir, mpaName, "index");
+}
+function copyFileOrDirSync(src, dest) {
+  try {
+    if (import_fs.default.existsSync(src)) {
+      const STATUS = import_fs.default.statSync(src);
+      if (STATUS.isFile()) {
+        import_fs.default.copyFileSync(src, dest);
+      } else if (STATUS.isDirectory()) {
+        import_fs.default.mkdirSync(dest);
+        import_fs.default.readdirSync(src).forEach((item) => {
+          copyFileOrDirSync(`${src}/${item}`, `${dest}/${item}`);
+        });
+      }
+    }
+  } catch (e) {
+    console.error(e);
+    import_utils.logger.error(`${import_interface.PluginName} Encountered an error while syncing file ${import_utils.chalk.blue(src)} to ${import_utils.chalk.green(dest)}`);
+    import_utils.logger.error(`${import_interface.PluginName} 同步文件 ${import_utils.chalk.blue(src)} 到 ${import_utils.chalk.green(dest)} 时遇到错误`);
+  }
 }
 function removeFileOrDirSync(filePath) {
   try {
@@ -378,13 +461,18 @@ function splitChunksFilter(backgroundEntry, mainWorldEntryGroup, matchMainWorldE
 0 && (module.exports = {
   completionManifestPath,
   completionManifestV3Json,
+  completionManifestV3ToFirefox,
   completionWebpackEntryConfig,
+  copyFileOrDirSync,
   findPagesConfig,
+  firstWriteAllFile,
   firstWriteManifestV3Json,
   initPluginConfig,
   loadManifestBaseJson,
+  loadManifestTargetJson,
   removeFileOrDirSync,
   splitChunksFilter,
+  syncTargetsFiles,
   toPosixPath,
   writeManifestV3Json
 });

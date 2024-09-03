@@ -1,8 +1,8 @@
 import type {IApi} from 'umi';
-import {chalk, logger} from "@umijs/utils";
+import {logger} from "@umijs/utils";
 import Path from "path";
 import {browserExtensionDefaultConfig, browserExtensionEntryConfig, PluginName} from "./interface";
-import {completionManifestPath, completionWebpackEntryConfig, findPagesConfig, firstWriteManifestV3Json, initPluginConfig, loadManifestBaseJson, removeFileOrDirSync, splitChunksFilter, writeManifestV3Json} from "./utils";
+import {completionManifestPath, completionWebpackEntryConfig, findPagesConfig, firstWriteAllFile, initPluginConfig, loadManifestBaseJson, loadManifestTargetJson, removeFileOrDirSync, splitChunksFilter, syncTargetsFiles, writeManifestV3Json} from "./utils";
 
 
 export default (api: IApi) => {
@@ -28,6 +28,7 @@ export default (api: IApi) => {
                     popupDefaultIcon: joi.object().pattern(joi.string(), joi.string()).default({}),
                     splitChunks: joi.boolean().default(true),
                     splitChunksPathName: joi.string().default('chunks'),
+                    targets: joi.array().items(joi.string().valid('chrome', 'firefox')).default(['chrome']),
                 });
             },
         }
@@ -36,10 +37,13 @@ export default (api: IApi) => {
     const isDev = api.env === 'development';
     let hasOpenHMR = false;
     const pluginConfig = initPluginConfig(api.userConfig.browserExtension || {});
-    const {splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName} = pluginConfig;
+    const {splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets} = pluginConfig;
     const manifestSourcePath = completionManifestPath(pluginConfig);
-    let manifestBaseJson = loadManifestBaseJson(manifestSourcePath, pluginConfig)
+    const manifestSourcePathBefore = manifestSourcePath.replace(/\.json$/, "");
+    let manifestBaseJson = loadManifestBaseJson(manifestSourcePath, pluginConfig);
+    let manifestTargetsJson = loadManifestTargetJson(manifestSourcePathBefore, targets, pluginConfig);
     let outputPath: string;
+    let outputBasePath: string; // 如果只有一个目标时BasePath = outputPath, 多个时BasePath = outputPath.parent();
     let pagesConfig: { [k: string]: browserExtensionEntryConfig } = {};
     //是否启用切割代码
     const enableSplitChunks = splitChunks && !isDev;
@@ -78,7 +82,16 @@ export default (api: IApi) => {
         pagesConfig = findPagesConfig(manifestBaseJson, pluginConfig, memo.mpa.entry, vendorEntry);
         outputPath = memo.outputPath || "dist";
         outputPath = Path.posix.join(outputPath, isDev ? 'dev' : 'build');
+        outputBasePath = outputPath;
         removeFileOrDirSync(outputPath);
+        if (targets.length === 0) {
+            logger.error(`${PluginName} 必须要有一个具体的target,不能设置为空target`);
+            throw Error(`${PluginName} Please set a specific target, cannot be set to an empty target`);
+        } else if (targets.length > 1) {
+            // 如果是多目标打包，则默认编译到第一个目标，然后把结果copy到其他目标并根据不同的target生成对应的manifest.json
+            outputPath = Path.posix.join(outputPath, targets[0]);
+        }
+
         if (isDev) {
             if (!hasOpenHMR) {
                 if (memo.fastRefresh === undefined) {
@@ -163,37 +176,40 @@ export default (api: IApi) => {
 
     api.onBuildComplete(({err, stats}) => {
         if (err) return;
-        firstWriteManifestV3Json(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
-        // writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
-        logger.info(`${PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
-        logger.info(`${PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
-        logger.ready(`${PluginName} Build Complete. Load from: `, chalk.green(Path.resolve(outputPath)));
+        firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
     });
 
     api.onDevCompileDone(({isFirstCompile, stats}) => {
         if (isFirstCompile) {
-            firstWriteManifestV3Json(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
-            logger.info(`${PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
-            logger.info(`${PluginName} 首次开发编译完成。请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
-            logger.ready(`${PluginName} Dev Compile Complete. Load from: `, chalk.green(Path.resolve(outputPath)));
+            firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
+        } else {
+            syncTargetsFiles(stats, outputPath, outputBasePath, targets)
         }
     });
 
     api.onGenerateFiles(({isFirstTime, files}) => {
         if (isDev) {
             if (!isFirstTime && files) {
+                let manifestIsModified = false;
                 for (const {event, path} of files) {
-                    if (path.includes(manifestSourcePath) && event === 'change') {
-                        manifestBaseJson = loadManifestBaseJson(manifestSourcePath, pluginConfig);
-                        writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
-                        logger.info(`${PluginName} Update and write manifest.json file successfully.`);
+                    if (path.startsWith(manifestSourcePathBefore) && event === 'change') {
+                        manifestIsModified = true;
                     }
+                }
+                if (manifestIsModified) {
+                    manifestBaseJson = loadManifestBaseJson(manifestSourcePath, pluginConfig);
+                    manifestTargetsJson = loadManifestTargetJson(manifestSourcePathBefore, targets, pluginConfig);
+                    for (const target of targets) {
+                        const targetPath = Path.posix.join(outputBasePath, target);
+                        writeManifestV3Json(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target);
+                    }
+                    logger.info(`${PluginName} Update and write manifest.json file successfully.`);
                 }
             }
         }
     });
 
-    api.addTmpGenerateWatcherPaths(() => [manifestSourcePath]);
+    api.addTmpGenerateWatcherPaths(() => [manifestSourcePath, ...targets.map((t) => `${manifestSourcePathBefore}.${t}.json`)]);
 
     // TODO 添加 content_script, options, background, popup页面的微生成器,下面的生成ManifestV3的微生成器没用,微生成器是给开发者的脚手架,不是编译中用的
 

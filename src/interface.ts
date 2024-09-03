@@ -7,6 +7,8 @@ export const F_EXCLUDE_COMPONENTS = `${Path.posix.sep}components${Path.posix.sep
 export const F_EXCLUDE_MODELS = `${Path.posix.sep}models${Path.posix.sep}`;
 export const F_EXCLUDE_UTILS = `${Path.posix.sep}utils${Path.posix.sep}`;
 
+export type Target = 'chrome' | 'firefox';//  | 'safari'
+
 export type Encoding = "ascii" | "utf8" | "utf-8" | "utf16le" | "ucs2" | "ucs-2" | "base64" | "latin1" | "binary" | "hex";
 
 export interface browserExtensionConfig {
@@ -26,6 +28,7 @@ export interface browserExtensionConfig {
     popupDefaultIcon: { [size: string]: string };
     splitChunks: boolean;
     splitChunksPathName: string;
+    targets: Target[];
 }
 
 export const browserExtensionDefaultConfig: browserExtensionConfig = {
@@ -45,6 +48,7 @@ export const browserExtensionDefaultConfig: browserExtensionConfig = {
     popupDefaultIcon: {},
     splitChunks: true,
     splitChunksPathName: "chunks",
+    targets: ['chrome'],
 };
 
 export interface browserExtensionEntryConfig {

@@ -2,6 +2,7 @@ export declare const PluginName = "[umi-browser-extension]";
 export declare const F_EXCLUDE_COMPONENTS: string;
 export declare const F_EXCLUDE_MODELS: string;
 export declare const F_EXCLUDE_UTILS: string;
+export type Target = 'chrome' | 'firefox';
 export type Encoding = "ascii" | "utf8" | "utf-8" | "utf16le" | "ucs2" | "ucs-2" | "base64" | "latin1" | "binary" | "hex";
 export interface browserExtensionConfig {
     rootPath: string;
@@ -22,6 +23,7 @@ export interface browserExtensionConfig {
     };
     splitChunks: boolean;
     splitChunksPathName: string;
+    targets: Target[];
 }
 export declare const browserExtensionDefaultConfig: browserExtensionConfig;
 export interface browserExtensionEntryConfig {

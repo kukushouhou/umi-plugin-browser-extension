@@ -1,4 +1,4 @@
-import { browserExtensionConfig, browserExtensionEntryConfig } from "./interface";
+import { browserExtensionConfig, browserExtensionEntryConfig, Target } from "./interface";
 import { webpack } from "umi";
 export declare function completionWebpackEntryConfig(pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
@@ -17,23 +17,32 @@ export declare function completionManifestPath(pluginConfig: browserExtensionCon
 export declare function loadManifestBaseJson(manifestSourcePath: string, pluginConfig: browserExtensionConfig): {
     [k: string]: any;
 };
+export declare function loadManifestTargetJson(manifestSourcePathBefore: string, targets: Target[], pluginConfig: browserExtensionConfig): Partial<Record<Target, any>>;
 export declare function completionManifestV3Json(manifestBaseJson: {
     [k: string]: any;
-}, pagesConfig: {
+}, manifestTargetsJson: Partial<Record<Target, any>>, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
-}): {
+}, target: Target): {
     [x: string]: any;
 };
+export declare function completionManifestV3ToFirefox(manifestJson: any): void;
+export declare function syncTargetsFiles(stats: webpack.Stats, outputPath: string, outputBasePath: string, targets: Target[]): void;
+export declare function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson: {
+    [k: string]: any;
+}, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, outputBasePath: string, pagesConfig: {
+    [k: string]: browserExtensionEntryConfig;
+}, vendorEntry: string, targets: Target[]): void;
 export declare function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson: {
     [k: string]: any;
-}, outputPath: string, pagesConfig: {
+}, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
-}, vendorEntry: string): void;
+}, vendorEntry: string, target: Target): void;
 export declare function writeManifestV3Json(manifestBaseJson: {
     [k: string]: any;
-}, outputPath: string, pagesConfig: {
+}, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
-}): void;
+}, target: Target): void;
+export declare function copyFileOrDirSync(src: string, dest: string): void;
 export declare function removeFileOrDirSync(filePath: string): void;
 /**
  * Converts a path string to POSIX format, ensuring it uses forward slashes.

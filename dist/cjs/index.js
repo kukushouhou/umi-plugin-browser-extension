@@ -58,7 +58,8 @@ var src_default = (api) => {
           popupDefaultTitle: joi.string().default(""),
           popupDefaultIcon: joi.object().pattern(joi.string(), joi.string()).default({}),
           splitChunks: joi.boolean().default(true),
-          splitChunksPathName: joi.string().default("chunks")
+          splitChunksPathName: joi.string().default("chunks"),
+          targets: joi.array().items(joi.string().valid("chrome", "firefox")).default(["chrome"])
         });
       }
     }
@@ -66,10 +67,13 @@ var src_default = (api) => {
   const isDev = api.env === "development";
   let hasOpenHMR = false;
   const pluginConfig = (0, import_utils2.initPluginConfig)(api.userConfig.browserExtension || {});
-  const { splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName } = pluginConfig;
+  const { splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets } = pluginConfig;
   const manifestSourcePath = (0, import_utils2.completionManifestPath)(pluginConfig);
+  const manifestSourcePathBefore = manifestSourcePath.replace(/\.json$/, "");
   let manifestBaseJson = (0, import_utils2.loadManifestBaseJson)(manifestSourcePath, pluginConfig);
+  let manifestTargetsJson = (0, import_utils2.loadManifestTargetJson)(manifestSourcePathBefore, targets, pluginConfig);
   let outputPath;
+  let outputBasePath;
   let pagesConfig = {};
   const enableSplitChunks = splitChunks && !isDev;
   const vendorEntry = enableSplitChunks ? import_path.default.posix.join(jsCssOutputDir, splitChunksPathName, "vendor") : "";
@@ -98,7 +102,14 @@ var src_default = (api) => {
     pagesConfig = (0, import_utils2.findPagesConfig)(manifestBaseJson, pluginConfig, memo.mpa.entry, vendorEntry);
     outputPath = memo.outputPath || "dist";
     outputPath = import_path.default.posix.join(outputPath, isDev ? "dev" : "build");
+    outputBasePath = outputPath;
     (0, import_utils2.removeFileOrDirSync)(outputPath);
+    if (targets.length === 0) {
+      import_utils.logger.error(`${import_interface.PluginName} 必须要有一个具体的target,不能设置为空target`);
+      throw Error(`${import_interface.PluginName} Please set a specific target, cannot be set to an empty target`);
+    } else if (targets.length > 1) {
+      outputPath = import_path.default.posix.join(outputPath, targets[0]);
+    }
     if (isDev) {
       if (!hasOpenHMR) {
         if (memo.fastRefresh === void 0) {
@@ -173,31 +184,35 @@ var src_default = (api) => {
   api.onBuildComplete(({ err, stats }) => {
     if (err)
       return;
-    (0, import_utils2.firstWriteManifestV3Json)(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
-    import_utils.logger.info(`${import_interface.PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
-    import_utils.logger.info(`${import_interface.PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
-    import_utils.logger.ready(`${import_interface.PluginName} Build Complete. Load from: `, import_utils.chalk.green(import_path.default.resolve(outputPath)));
+    (0, import_utils2.firstWriteAllFile)(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
   });
   api.onDevCompileDone(({ isFirstCompile, stats }) => {
     if (isFirstCompile) {
-      (0, import_utils2.firstWriteManifestV3Json)(stats, manifestBaseJson, outputPath, pagesConfig, vendorEntry);
-      import_utils.logger.info(`${import_interface.PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
-      import_utils.logger.info(`${import_interface.PluginName} 首次开发编译完成。请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
-      import_utils.logger.ready(`${import_interface.PluginName} Dev Compile Complete. Load from: `, import_utils.chalk.green(import_path.default.resolve(outputPath)));
+      (0, import_utils2.firstWriteAllFile)(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
+    } else {
+      (0, import_utils2.syncTargetsFiles)(stats, outputPath, outputBasePath, targets);
     }
   });
   api.onGenerateFiles(({ isFirstTime, files }) => {
     if (isDev) {
       if (!isFirstTime && files) {
+        let manifestIsModified = false;
         for (const { event, path } of files) {
-          if (path.includes(manifestSourcePath) && event === "change") {
-            manifestBaseJson = (0, import_utils2.loadManifestBaseJson)(manifestSourcePath, pluginConfig);
-            (0, import_utils2.writeManifestV3Json)(manifestBaseJson, outputPath, pagesConfig);
-            import_utils.logger.info(`${import_interface.PluginName} Update and write manifest.json file successfully.`);
+          if (path.startsWith(manifestSourcePathBefore) && event === "change") {
+            manifestIsModified = true;
           }
+        }
+        if (manifestIsModified) {
+          manifestBaseJson = (0, import_utils2.loadManifestBaseJson)(manifestSourcePath, pluginConfig);
+          manifestTargetsJson = (0, import_utils2.loadManifestTargetJson)(manifestSourcePathBefore, targets, pluginConfig);
+          for (const target of targets) {
+            const targetPath = import_path.default.posix.join(outputBasePath, target);
+            (0, import_utils2.writeManifestV3Json)(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target);
+          }
+          import_utils.logger.info(`${import_interface.PluginName} Update and write manifest.json file successfully.`);
         }
       }
     }
   });
-  api.addTmpGenerateWatcherPaths(() => [manifestSourcePath]);
+  api.addTmpGenerateWatcherPaths(() => [manifestSourcePath, ...targets.map((t) => `${manifestSourcePathBefore}.${t}.json`)]);
 };

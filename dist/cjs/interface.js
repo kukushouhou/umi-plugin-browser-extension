@@ -57,7 +57,8 @@ var browserExtensionDefaultConfig = {
   popupDefaultTitle: "",
   popupDefaultIcon: {},
   splitChunks: true,
-  splitChunksPathName: "chunks"
+  splitChunksPathName: "chunks",
+  targets: ["chrome"]
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

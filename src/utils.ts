@@ -1,5 +1,5 @@
-import {glob, logger} from '@umijs/utils'
-import {browserExtensionConfig, browserExtensionDefaultConfig, browserExtensionEntryConfig, F_EXCLUDE_COMPONENTS, F_EXCLUDE_MODELS, F_EXCLUDE_UTILS, PluginName} from "./interface";
+import {chalk, glob, logger} from '@umijs/utils'
+import {browserExtensionConfig, browserExtensionDefaultConfig, browserExtensionEntryConfig, F_EXCLUDE_COMPONENTS, F_EXCLUDE_MODELS, F_EXCLUDE_UTILS, PluginName, Target} from "./interface";
 import Path from "path";
 import Fs from "fs";
 import {webpack} from "umi";
@@ -252,8 +252,26 @@ export function loadManifestBaseJson(manifestSourcePath: string, pluginConfig: b
     return JSON.parse(Fs.readFileSync(manifestSourcePath, {encoding: pluginConfig.encoding}).toString());
 }
 
-export function completionManifestV3Json(manifestBaseJson: { [k: string]: any }, pagesConfig: { [k: string]: browserExtensionEntryConfig }) {
+export function loadManifestTargetJson(manifestSourcePathBefore: string, targets: Target[], pluginConfig: browserExtensionConfig) {
+    const result: Partial<Record<Target, any>> = {};
+    for (const target of targets) {
+        // 将原路径末尾的.json替换为.${target}.json,只能替换末尾最后一个.json
+        const targetSourcePath = `${manifestSourcePathBefore}.${target}.json`;
+        if (Fs.existsSync(targetSourcePath)) {
+            const targetJson = JSON.parse(Fs.readFileSync(targetSourcePath, {encoding: pluginConfig.encoding}).toString());
+            if (targetJson) {
+                result[target] = targetJson;
+            }
+        }
+    }
+    return result;
+}
+
+export function completionManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target) {
     const manifestJson = {...manifestBaseJson};
+    if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
+        Object.assign(manifestJson, manifestTargetsJson[target]);
+    }
     const contentScriptsConfig: { [k: string]: any }[] = [];
     for (const pageConfig of Object.values(pagesConfig)) {
         const {type, config} = pageConfig;
@@ -288,19 +306,71 @@ export function completionManifestV3Json(manifestBaseJson: { [k: string]: any },
     if (contentScriptsConfig.length > 0) {
         manifestJson.content_scripts = contentScriptsConfig;
     }
+    if (target === 'firefox') {
+        completionManifestV3ToFirefox(manifestJson);
+    }
     return manifestJson;
 }
 
-export function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string) {
+export function completionManifestV3ToFirefox(manifestJson: any) {
+    if (manifestJson) {
+        if (manifestJson.permissions && manifestJson.permissions.includes('commands')) {
+            // firefox不支持commands,所以要把commands移除
+            manifestJson.permissions = manifestJson.permissions.filter((permission: string) => permission !== 'commands');
+        }
+        if (manifestJson.background && manifestJson.background.service_worker && !manifestJson.background.scripts) {
+            // firefox不支持service_worker,所以要把service_worker替换为scripts
+            manifestJson.background.scripts = [manifestJson.background.service_worker];
+            delete manifestJson.background.service_worker;
+        }
+        if (manifestJson.incognito && manifestJson.incognito === 'split') {
+            // firefox不支持incognito配置为split,如果配置为split则会自动降级到not_allowed,所以这里要把incognito替换为not_allowed
+            manifestJson.incognito = 'not_allowed';
+        }
+    }
+}
+
+export function syncTargetsFiles(stats: webpack.Stats, outputPath: string, outputBasePath: string, targets: Target[]) {
+    const changedFiles = stats.compilation.emittedAssets;
+    for (const changedFile of changedFiles) {
+        for (let i = 1; i < targets.length; i += 1) {
+            const target = targets[i];
+            const targetPath = Path.posix.join(outputBasePath, target);
+            copyFileOrDirSync(Path.posix.join(outputPath, changedFile), Path.posix.join(targetPath, changedFile));
+            // logger.info(`已同步文件改动:${changedFile},到${targetPath}`);
+        }
+    }
+    // const changedFiles = statsData.com
+}
+
+
+export function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, outputBasePath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string, targets: Target[]) {
+    if (targets.length > 1) {
+        for (let i = 1; i < targets.length; i += 1) {
+            const targetPath = Path.posix.join(outputBasePath, targets[i]);
+            copyFileOrDirSync(outputPath, targetPath);
+            firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, vendorEntry, targets[i]);
+        }
+    }
+    firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, targets[0]);
+    logger.info(`${PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
+    logger.info(`${PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
+    for (const target of targets) {
+        const targetPath = Path.posix.join(outputBasePath, target);
+        logger.ready(`${PluginName} Build Complete. ${target} browser load from: `, chalk.green(Path.resolve(targetPath)));
+    }
+}
+
+export function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string, target: Target) {
     const statsData = stats.toJson({all: true});
     if (statsData.chunks) {
         completionContentScriptsConfig(statsData, pagesConfig, vendorEntry);
     }
-    writeManifestV3Json(manifestBaseJson, outputPath, pagesConfig);
+    writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target);
 }
 
-export function writeManifestV3Json(manifestBaseJson: { [k: string]: any }, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }) {
-    const manifestJson = completionManifestV3Json(manifestBaseJson, pagesConfig);
+export function writeManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target) {
+    const manifestJson = completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target);
     Fs.writeFileSync(Path.posix.join(outputPath, 'manifest.json'), JSON.stringify(manifestJson, null, 2));
 }
 
@@ -324,6 +394,31 @@ function completionFilePathFromNameList(path: string, nameList: string[]) {
 function completionEntry(mpaName: string, pluginConfig: browserExtensionConfig) {
     const {jsCssOutputDir} = pluginConfig;
     return Path.posix.join(jsCssOutputDir, mpaName, 'index');
+}
+
+export function copyFileOrDirSync(src: string, dest: string) {
+    try {
+        if (Fs.existsSync(src)) {
+            const STATUS = Fs.statSync(src);
+            if (STATUS.isFile()) {
+                // 如果原路径是文件
+                // 复制文件到目标路径
+                Fs.copyFileSync(src, dest);
+            } else if (STATUS.isDirectory()) {
+                // 如果原路径是目录
+                // 创建目标路径
+                Fs.mkdirSync(dest);
+                // 遍历原路径下的所有文件和子目录
+                Fs.readdirSync(src).forEach(item => {
+                    copyFileOrDirSync(`${src}/${item}`, `${dest}/${item}`);
+                })
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        logger.error(`${PluginName} Encountered an error while syncing file ${chalk.blue(src)} to ${chalk.green(dest)}`);
+        logger.error(`${PluginName} 同步文件 ${chalk.blue(src)} 到 ${chalk.green(dest)} 时遇到错误`);
+    }
 }
 
 export function removeFileOrDirSync(filePath: string) {
