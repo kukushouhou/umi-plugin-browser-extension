@@ -59,7 +59,7 @@ var src_default = (api) => {
           popupDefaultIcon: joi.object().pattern(joi.string(), joi.string()).default({}),
           splitChunks: joi.boolean().default(true),
           splitChunksPathName: joi.string().default("chunks"),
-          targets: joi.array().items(joi.string().valid("chrome", "firefox")).default(["chrome"])
+          targets: joi.array().items(joi.string().valid("chrome", "chrome102", "firefox")).default(["chrome"])
         });
       }
     }
@@ -182,8 +182,7 @@ var src_default = (api) => {
     return memo;
   });
   api.onBuildComplete(({ err, stats }) => {
-    if (err)
-      return;
+    if (err) return;
     (0, import_utils2.firstWriteAllFile)(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
   });
   api.onDevCompileDone(({ isFirstCompile, stats }) => {

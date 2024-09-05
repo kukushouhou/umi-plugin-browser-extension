@@ -28,7 +28,7 @@ export default (api: IApi) => {
                     popupDefaultIcon: joi.object().pattern(joi.string(), joi.string()).default({}),
                     splitChunks: joi.boolean().default(true),
                     splitChunksPathName: joi.string().default('chunks'),
-                    targets: joi.array().items(joi.string().valid('chrome', 'firefox')).default(['chrome']),
+                    targets: joi.array().items(joi.string().valid('chrome', 'chrome102', 'firefox')).default(['chrome']),
                 });
             },
         }

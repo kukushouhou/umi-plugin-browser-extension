@@ -267,50 +267,15 @@ export function loadManifestTargetJson(manifestSourcePathBefore: string, targets
     return result;
 }
 
-export function completionManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target) {
-    let manifestJson: any = deepmerge.all([manifestBaseJson]);
-    // const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
-    if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
-        manifestJson = deepmerge.all([manifestJson, manifestTargetsJson[target]]);
+
+export function completionManifestV3ToChrome102(manifestJson: any, outputPath: string) {
+    // chrome102~110版本不支持主世界脚本直接写入内容脚本，需要移除内容脚本列表中的主世界脚本，然后输出main-world.json，让用户自行通过service works读取然后走scripting.registerContentScripts()注册
+    const mainWorldScripts = manifestJson.content_scripts?.filter((contentScript: any) => contentScript.world === 'MAIN');
+    if (mainWorldScripts && mainWorldScripts.length > 0) {
+        const mainWorldScriptsPath = Path.posix.join(outputPath, 'main-world.json');
+        Fs.writeFileSync(mainWorldScriptsPath, JSON.stringify(mainWorldScripts, null, 4));
+        manifestJson.content_scripts = manifestJson.content_scripts.filter((contentScript: any) => contentScript.world !== 'MAIN');
     }
-    const contentScriptsConfig: { [k: string]: any }[] = [];
-    for (const pageConfig of Object.values(pagesConfig)) {
-        const {type, config} = pageConfig;
-        switch (type) {
-            case 'content_script':
-                contentScriptsConfig.push(config);
-                break;
-            case 'options':
-                manifestJson.options_ui = config;
-                break;
-            case 'popup':
-                if (config && Object.keys(config).length > 0) {
-                    manifestJson.action = {...config};
-                    if (!manifestJson.action.default_icon || Object.keys(manifestJson.action.default_icon).length === 0) {
-                        // 如果用户没传递弹窗图标,直接复用扩展图标
-                        manifestJson.action.default_icon = manifestJson.icons;
-                    }
-                    if (!manifestJson.action.default_title) {
-                        // 如果用户没传递弹窗标题,直接复用扩展名称
-                        manifestJson.action.default_title = manifestJson.name;
-                    }
-                }
-                break;
-            case 'background':
-                manifestJson.background = config;
-                break;
-            default:
-                logger.error(`[${PluginName}]  unknown page type:\t${type}`);
-                throw Error();
-        }
-    }
-    if (contentScriptsConfig.length > 0) {
-        manifestJson.content_scripts = contentScriptsConfig;
-    }
-    if (target === 'firefox') {
-        completionManifestV3ToFirefox(manifestJson);
-    }
-    return manifestJson;
 }
 
 export function completionManifestV3ToFirefox(manifestJson: any) {
@@ -372,7 +337,52 @@ export function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson:
 }
 
 export function writeManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target) {
-    const manifestJson = completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target);
+    let manifestJson: any = deepmerge.all([manifestBaseJson]);
+    // const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
+    if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
+        manifestJson = deepmerge.all([manifestJson, manifestTargetsJson[target]]);
+    }
+    const contentScriptsConfig: { [k: string]: any }[] = [];
+    for (const pageConfig of Object.values(pagesConfig)) {
+        const {type, config} = pageConfig;
+        switch (type) {
+            case 'content_script':
+                contentScriptsConfig.push(config);
+                break;
+            case 'options':
+                manifestJson.options_ui = config;
+                break;
+            case 'popup':
+                if (config && Object.keys(config).length > 0) {
+                    manifestJson.action = {...config};
+                    if (!manifestJson.action.default_icon || Object.keys(manifestJson.action.default_icon).length === 0) {
+                        // 如果用户没传递弹窗图标,直接复用扩展图标
+                        manifestJson.action.default_icon = manifestJson.icons;
+                    }
+                    if (!manifestJson.action.default_title) {
+                        // 如果用户没传递弹窗标题,直接复用扩展名称
+                        manifestJson.action.default_title = manifestJson.name;
+                    }
+                }
+                break;
+            case 'background':
+                manifestJson.background = config;
+                break;
+            default:
+                logger.error(`[${PluginName}]  unknown page type:\t${type}`);
+                throw Error();
+        }
+    }
+    if (contentScriptsConfig.length > 0) {
+        manifestJson.content_scripts = contentScriptsConfig;
+    }
+    if (target === 'firefox') {
+        completionManifestV3ToFirefox(manifestJson);
+    }
+    if (target === 'chrome102') {
+        // chrome102~110版本不支持主世界脚本直接写入内容脚本，需要移除内容脚本列表中的主世界脚本，然后输出mainworld.json，让用户自行通过service works读取然后走scripting.registerContentScripts()注册
+        completionManifestV3ToChrome102(manifestJson, outputPath);
+    }
     Fs.writeFileSync(Path.posix.join(outputPath, 'manifest.json'), JSON.stringify(manifestJson, null, 2));
 }
 

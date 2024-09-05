@@ -30,7 +30,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var utils_exports = {};
 __export(utils_exports, {
   completionManifestPath: () => completionManifestPath,
-  completionManifestV3Json: () => completionManifestV3Json,
+  completionManifestV3ToChrome102: () => completionManifestV3ToChrome102,
   completionManifestV3ToFirefox: () => completionManifestV3ToFirefox,
   completionWebpackEntryConfig: () => completionWebpackEntryConfig,
   copyFileOrDirSync: () => copyFileOrDirSync,
@@ -296,47 +296,14 @@ function loadManifestTargetJson(manifestSourcePathBefore, targets, pluginConfig)
   }
   return result;
 }
-function completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target) {
-  let manifestJson = import_utils.deepmerge.all([manifestBaseJson]);
-  if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
-    manifestJson = import_utils.deepmerge.all([manifestJson, manifestTargetsJson[target]]);
+function completionManifestV3ToChrome102(manifestJson, outputPath) {
+  var _a;
+  const mainWorldScripts = (_a = manifestJson.content_scripts) == null ? void 0 : _a.filter((contentScript) => contentScript.world === "MAIN");
+  if (mainWorldScripts && mainWorldScripts.length > 0) {
+    const mainWorldScriptsPath = import_path.default.posix.join(outputPath, "main-world.json");
+    import_fs.default.writeFileSync(mainWorldScriptsPath, JSON.stringify(mainWorldScripts, null, 4));
+    manifestJson.content_scripts = manifestJson.content_scripts.filter((contentScript) => contentScript.world !== "MAIN");
   }
-  const contentScriptsConfig = [];
-  for (const pageConfig of Object.values(pagesConfig)) {
-    const { type, config } = pageConfig;
-    switch (type) {
-      case "content_script":
-        contentScriptsConfig.push(config);
-        break;
-      case "options":
-        manifestJson.options_ui = config;
-        break;
-      case "popup":
-        if (config && Object.keys(config).length > 0) {
-          manifestJson.action = { ...config };
-          if (!manifestJson.action.default_icon || Object.keys(manifestJson.action.default_icon).length === 0) {
-            manifestJson.action.default_icon = manifestJson.icons;
-          }
-          if (!manifestJson.action.default_title) {
-            manifestJson.action.default_title = manifestJson.name;
-          }
-        }
-        break;
-      case "background":
-        manifestJson.background = config;
-        break;
-      default:
-        import_utils.logger.error(`[${import_interface.PluginName}]  unknown page type:	${type}`);
-        throw Error();
-    }
-  }
-  if (contentScriptsConfig.length > 0) {
-    manifestJson.content_scripts = contentScriptsConfig;
-  }
-  if (target === "firefox") {
-    completionManifestV3ToFirefox(manifestJson);
-  }
-  return manifestJson;
 }
 function completionManifestV3ToFirefox(manifestJson) {
   if (manifestJson) {
@@ -387,7 +354,48 @@ function firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, 
   writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target);
 }
 function writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target) {
-  const manifestJson = completionManifestV3Json(manifestBaseJson, manifestTargetsJson, pagesConfig, target);
+  let manifestJson = import_utils.deepmerge.all([manifestBaseJson]);
+  if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
+    manifestJson = import_utils.deepmerge.all([manifestJson, manifestTargetsJson[target]]);
+  }
+  const contentScriptsConfig = [];
+  for (const pageConfig of Object.values(pagesConfig)) {
+    const { type, config } = pageConfig;
+    switch (type) {
+      case "content_script":
+        contentScriptsConfig.push(config);
+        break;
+      case "options":
+        manifestJson.options_ui = config;
+        break;
+      case "popup":
+        if (config && Object.keys(config).length > 0) {
+          manifestJson.action = { ...config };
+          if (!manifestJson.action.default_icon || Object.keys(manifestJson.action.default_icon).length === 0) {
+            manifestJson.action.default_icon = manifestJson.icons;
+          }
+          if (!manifestJson.action.default_title) {
+            manifestJson.action.default_title = manifestJson.name;
+          }
+        }
+        break;
+      case "background":
+        manifestJson.background = config;
+        break;
+      default:
+        import_utils.logger.error(`[${import_interface.PluginName}]  unknown page type:	${type}`);
+        throw Error();
+    }
+  }
+  if (contentScriptsConfig.length > 0) {
+    manifestJson.content_scripts = contentScriptsConfig;
+  }
+  if (target === "firefox") {
+    completionManifestV3ToFirefox(manifestJson);
+  }
+  if (target === "chrome102") {
+    completionManifestV3ToChrome102(manifestJson, outputPath);
+  }
   import_fs.default.writeFileSync(import_path.default.posix.join(outputPath, "manifest.json"), JSON.stringify(manifestJson, null, 2));
 }
 function findFileGroup(pathBefore, fileName) {
@@ -461,7 +469,7 @@ function splitChunksFilter(backgroundEntry, mainWorldEntryGroup, matchMainWorldE
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   completionManifestPath,
-  completionManifestV3Json,
+  completionManifestV3ToChrome102,
   completionManifestV3ToFirefox,
   completionWebpackEntryConfig,
   copyFileOrDirSync,

@@ -18,11 +18,7 @@ export declare function loadManifestBaseJson(manifestSourcePath: string, pluginC
     [k: string]: any;
 };
 export declare function loadManifestTargetJson(manifestSourcePathBefore: string, targets: Target[], pluginConfig: browserExtensionConfig): Partial<Record<Target, any>>;
-export declare function completionManifestV3Json(manifestBaseJson: {
-    [k: string]: any;
-}, manifestTargetsJson: Partial<Record<Target, any>>, pagesConfig: {
-    [k: string]: browserExtensionEntryConfig;
-}, target: Target): any;
+export declare function completionManifestV3ToChrome102(manifestJson: any, outputPath: string): void;
 export declare function completionManifestV3ToFirefox(manifestJson: any): void;
 export declare function syncTargetsFiles(stats: webpack.Stats, outputPath: string, outputBasePath: string, targets: Target[]): void;
 export declare function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson: {
