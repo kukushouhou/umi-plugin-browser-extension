@@ -25,17 +25,17 @@ export declare function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson
     [k: string]: any;
 }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, outputBasePath: string, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
-}, vendorEntry: string, targets: Target[]): void;
+}, vendorEntry: string, targets: Target[], manifestHandler?: (manifestJson: any, target: Target) => any): void;
 export declare function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson: {
     [k: string]: any;
 }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
-}, vendorEntry: string, target: Target): void;
+}, vendorEntry: string, target: Target, manifestHandler?: (manifestJson: any, target: Target) => any): void;
 export declare function writeManifestV3Json(manifestBaseJson: {
     [k: string]: any;
 }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
-}, target: Target): void;
+}, target: Target, manifestHandler?: (manifestJson: any, target: Target) => any): void;
 export declare function copyFileOrDirSync(src: string, dest: string): void;
 export declare function removeFileOrDirSync(filePath: string): void;
 /**

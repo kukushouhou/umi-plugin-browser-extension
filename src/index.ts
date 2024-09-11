@@ -29,6 +29,10 @@ export default (api: IApi) => {
                     splitChunks: joi.boolean().default(true),
                     splitChunksPathName: joi.string().default('chunks'),
                     targets: joi.array().items(joi.string().valid('chrome', 'chrome102', 'firefox')).default(['chrome']),
+                    // manifestHandler?: (manifestJson: any, target: Target) => any;
+                    // joi2types bug 无法正确转换带参数的函数类型，因此只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest
+                    // https://github.com/ycjcl868/joi2types/pull/17
+                    manifestHandler: joi.any().description("Joi2types bug 无法正确转换带参数的函数类型，修复前只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest")
                 });
             },
         }
@@ -37,7 +41,7 @@ export default (api: IApi) => {
     const isDev = api.env === 'development';
     let hasOpenHMR = false;
     const pluginConfig = initPluginConfig(api.userConfig.browserExtension || {});
-    const {splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets} = pluginConfig;
+    const {splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets, manifestHandler} = pluginConfig;
     const manifestSourcePath = completionManifestPath(pluginConfig);
     const manifestSourcePathBefore = manifestSourcePath.replace(/\.json$/, "");
     let manifestBaseJson = loadManifestBaseJson(manifestSourcePath, pluginConfig);
@@ -176,12 +180,12 @@ export default (api: IApi) => {
 
     api.onBuildComplete(({err, stats}) => {
         if (err) return;
-        firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
+        firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets, manifestHandler);
     });
 
     api.onDevCompileDone(({isFirstCompile, stats}) => {
         if (isFirstCompile) {
-            firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
+            firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets, manifestHandler);
         } else {
             syncTargetsFiles(stats, outputPath, outputBasePath, targets)
         }
@@ -201,7 +205,7 @@ export default (api: IApi) => {
                     manifestTargetsJson = loadManifestTargetJson(manifestSourcePathBefore, targets, pluginConfig);
                     for (const target of targets) {
                         const targetPath = Path.posix.join(outputBasePath, target);
-                        writeManifestV3Json(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target);
+                        writeManifestV3Json(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target, manifestHandler);
                     }
                     logger.info(`${PluginName} Update and write manifest.json file successfully.`);
                 }

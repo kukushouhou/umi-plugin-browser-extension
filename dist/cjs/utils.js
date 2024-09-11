@@ -330,15 +330,15 @@ function syncTargetsFiles(stats, outputPath, outputBasePath, targets) {
     }
   }
 }
-function firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets) {
+function firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets, manifestHandler) {
   if (targets.length > 1) {
     for (let i = 1; i < targets.length; i += 1) {
       const targetPath = import_path.default.posix.join(outputBasePath, targets[i]);
       copyFileOrDirSync(outputPath, targetPath);
-      firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, vendorEntry, targets[i]);
+      firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, vendorEntry, targets[i], manifestHandler);
     }
   }
-  firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, targets[0]);
+  firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, targets[0], manifestHandler);
   import_utils.logger.info(`${import_interface.PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
   import_utils.logger.info(`${import_interface.PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
   for (const target of targets) {
@@ -346,14 +346,14 @@ function firstWriteAllFile(stats, manifestBaseJson, manifestTargetsJson, outputP
     import_utils.logger.ready(`${import_interface.PluginName} Build Complete. ${target} browser load from: `, import_utils.chalk.green(import_path.default.resolve(targetPath)));
   }
 }
-function firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, target) {
+function firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, target, manifestHandler) {
   const statsData = stats.toJson({ all: true });
   if (statsData.chunks) {
     completionContentScriptsConfig(statsData, pagesConfig, vendorEntry);
   }
-  writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target);
+  writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target, manifestHandler);
 }
-function writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target) {
+function writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target, manifestHandler) {
   let manifestJson = import_utils.deepmerge.all([manifestBaseJson]);
   if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
     manifestJson = import_utils.deepmerge.all([manifestJson, manifestTargetsJson[target]]);
@@ -395,6 +395,9 @@ function writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, 
   }
   if (target === "chrome102") {
     completionManifestV3ToChrome102(manifestJson, outputPath);
+  }
+  if (manifestHandler) {
+    manifestJson = manifestHandler(manifestJson, target);
   }
   import_fs.default.writeFileSync(import_path.default.posix.join(outputPath, "manifest.json"), JSON.stringify(manifestJson, null, 2));
 }

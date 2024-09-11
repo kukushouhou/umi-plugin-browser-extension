@@ -311,15 +311,17 @@ export function syncTargetsFiles(stats: webpack.Stats, outputPath: string, outpu
 }
 
 
-export function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, outputBasePath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string, targets: Target[]) {
+export function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, outputBasePath: string, pagesConfig: {
+    [k: string]: browserExtensionEntryConfig
+}, vendorEntry: string, targets: Target[], manifestHandler?: (manifestJson: any, target: Target) => any) {
     if (targets.length > 1) {
         for (let i = 1; i < targets.length; i += 1) {
             const targetPath = Path.posix.join(outputBasePath, targets[i]);
             copyFileOrDirSync(outputPath, targetPath);
-            firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, vendorEntry, targets[i]);
+            firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, vendorEntry, targets[i], manifestHandler);
         }
     }
-    firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, targets[0]);
+    firstWriteManifestV3Json(stats, manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, vendorEntry, targets[0], manifestHandler);
     logger.info(`${PluginName} Go to 'chrome://extensions/', enable 'Developer mode', click 'Load unpacked', and select this directory.`);
     logger.info(`${PluginName} 请打开 'chrome://extensions/', 启用 '开发者模式', 点击 '加载已解压的扩展程序', 然后选择该目录。`);
     for (const target of targets) {
@@ -328,15 +330,17 @@ export function firstWriteAllFile(stats: webpack.Stats, manifestBaseJson: { [k: 
     }
 }
 
-export function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, vendorEntry: string, target: Target) {
+export function firstWriteManifestV3Json(stats: webpack.Stats, manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: {
+    [k: string]: browserExtensionEntryConfig
+}, vendorEntry: string, target: Target, manifestHandler?: (manifestJson: any, target: Target) => any) {
     const statsData = stats.toJson({all: true});
     if (statsData.chunks) {
         completionContentScriptsConfig(statsData, pagesConfig, vendorEntry);
     }
-    writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target);
+    writeManifestV3Json(manifestBaseJson, manifestTargetsJson, outputPath, pagesConfig, target, manifestHandler);
 }
 
-export function writeManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target) {
+export function writeManifestV3Json(manifestBaseJson: { [k: string]: any }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: { [k: string]: browserExtensionEntryConfig }, target: Target, manifestHandler?: (manifestJson: any, target: Target) => any) {
     let manifestJson: any = deepmerge.all([manifestBaseJson]);
     // const manifestJson = JSON.parse(JSON.stringify(manifestBaseJson));
     if (target in manifestTargetsJson && Object.keys(manifestTargetsJson[target]).length > 0) {
@@ -382,6 +386,9 @@ export function writeManifestV3Json(manifestBaseJson: { [k: string]: any }, mani
     if (target === 'chrome102') {
         // chrome102~110版本不支持主世界脚本直接写入内容脚本，需要移除内容脚本列表中的主世界脚本，然后输出mainworld.json，让用户自行通过service works读取然后走scripting.registerContentScripts()注册
         completionManifestV3ToChrome102(manifestJson, outputPath);
+    }
+    if (manifestHandler) {
+        manifestJson = manifestHandler(manifestJson, target);
     }
     Fs.writeFileSync(Path.posix.join(outputPath, 'manifest.json'), JSON.stringify(manifestJson, null, 2));
 }

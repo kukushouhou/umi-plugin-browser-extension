@@ -24,6 +24,7 @@ export interface browserExtensionConfig {
     splitChunks: boolean;
     splitChunksPathName: string;
     targets: Target[];
+    manifestHandler?: (manifestJson: any, target: Target) => any;
 }
 export declare const browserExtensionDefaultConfig: browserExtensionConfig;
 export interface browserExtensionEntryConfig {

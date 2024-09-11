@@ -59,7 +59,11 @@ var src_default = (api) => {
           popupDefaultIcon: joi.object().pattern(joi.string(), joi.string()).default({}),
           splitChunks: joi.boolean().default(true),
           splitChunksPathName: joi.string().default("chunks"),
-          targets: joi.array().items(joi.string().valid("chrome", "chrome102", "firefox")).default(["chrome"])
+          targets: joi.array().items(joi.string().valid("chrome", "chrome102", "firefox")).default(["chrome"]),
+          // manifestHandler?: (manifestJson: any, target: Target) => any;
+          // joi2types bug 无法正确转换带参数的函数类型，因此只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest
+          // https://github.com/ycjcl868/joi2types/pull/17
+          manifestHandler: joi.any().description("Joi2types bug 无法正确转换带参数的函数类型，修复前只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest")
         });
       }
     }
@@ -67,7 +71,7 @@ var src_default = (api) => {
   const isDev = api.env === "development";
   let hasOpenHMR = false;
   const pluginConfig = (0, import_utils2.initPluginConfig)(api.userConfig.browserExtension || {});
-  const { splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets } = pluginConfig;
+  const { splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets, manifestHandler } = pluginConfig;
   const manifestSourcePath = (0, import_utils2.completionManifestPath)(pluginConfig);
   const manifestSourcePathBefore = manifestSourcePath.replace(/\.json$/, "");
   let manifestBaseJson = (0, import_utils2.loadManifestBaseJson)(manifestSourcePath, pluginConfig);
@@ -183,11 +187,11 @@ var src_default = (api) => {
   });
   api.onBuildComplete(({ err, stats }) => {
     if (err) return;
-    (0, import_utils2.firstWriteAllFile)(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
+    (0, import_utils2.firstWriteAllFile)(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets, manifestHandler);
   });
   api.onDevCompileDone(({ isFirstCompile, stats }) => {
     if (isFirstCompile) {
-      (0, import_utils2.firstWriteAllFile)(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets);
+      (0, import_utils2.firstWriteAllFile)(stats, manifestBaseJson, manifestTargetsJson, outputPath, outputBasePath, pagesConfig, vendorEntry, targets, manifestHandler);
     } else {
       (0, import_utils2.syncTargetsFiles)(stats, outputPath, outputBasePath, targets);
     }
@@ -206,7 +210,7 @@ var src_default = (api) => {
           manifestTargetsJson = (0, import_utils2.loadManifestTargetJson)(manifestSourcePathBefore, targets, pluginConfig);
           for (const target of targets) {
             const targetPath = import_path.default.posix.join(outputBasePath, target);
-            (0, import_utils2.writeManifestV3Json)(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target);
+            (0, import_utils2.writeManifestV3Json)(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target, manifestHandler);
           }
           import_utils.logger.info(`${import_interface.PluginName} Update and write manifest.json file successfully.`);
         }
