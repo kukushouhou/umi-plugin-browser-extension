@@ -1,8 +1,9 @@
 import type {IApi} from 'umi';
 import {logger} from "@umijs/utils";
 import Path from "path";
-import {browserExtensionDefaultConfig, browserExtensionEntryConfig, PluginName} from "./interface";
+import {browserExtensionDefaultConfig, browserExtensionEntryConfig, ClearAbsPathKey, PluginName} from "./interface";
 import {completionManifestPath, completionWebpackEntryConfig, findPagesConfig, firstWriteAllFile, initPluginConfig, loadManifestBaseJson, loadManifestTargetJson, removeFileOrDirSync, splitChunksFilter, syncTargetsFiles, writeManifestV3Json} from "./utils";
+import {Compilation, sources} from 'webpack';
 
 
 export default (api: IApi) => {
@@ -32,7 +33,8 @@ export default (api: IApi) => {
                     // manifestHandler?: (manifestJson: any, target: Target) => any;
                     // joi2types bug 无法正确转换带参数的函数类型，因此只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest
                     // https://github.com/ycjcl868/joi2types/pull/17
-                    manifestHandler: joi.any().description("Joi2types bug 无法正确转换带参数的函数类型，修复前只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest")
+                    manifestHandler: joi.any().description("Joi2types bug 无法正确转换带参数的函数类型，修复前只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest"),
+                    clearAbsPath: joi.alternatives([joi.boolean(), joi.string()]).default(true),
                 });
             },
         }
@@ -41,7 +43,7 @@ export default (api: IApi) => {
     const isDev = api.env === 'development';
     let hasOpenHMR = false;
     const pluginConfig = initPluginConfig(api.userConfig.browserExtension || {});
-    const {splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets, manifestHandler} = pluginConfig;
+    const {splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets, manifestHandler, clearAbsPath} = pluginConfig;
     const manifestSourcePath = completionManifestPath(pluginConfig);
     const manifestSourcePathBefore = manifestSourcePath.replace(/\.json$/, "");
     let manifestBaseJson = loadManifestBaseJson(manifestSourcePath, pluginConfig);
@@ -142,6 +144,43 @@ export default (api: IApi) => {
                 // 同时也要移除热更新插件
                 return !(!hasOpenHMR && plugin.constructor.name === 'HotModuleReplacementPlugin');
             });
+
+            if (clearAbsPath) {
+                memo.plugins.push((compiler) => {
+                    compiler.hooks.thisCompilation.tap('ReplaceAbsolutePathPlugin', (compilation) => {
+                        compilation.hooks.processAssets.tap(
+                            {
+                                name: 'ReplaceAbsolutePathPlugin',
+                                stage: Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_SIZE,
+                            },
+                            (assets) => {
+                                for (const assetName in assets) {
+                                    if (assetName.endsWith('.js')) {
+                                        const asset = assets[assetName];
+                                        let source = asset.source();
+                                        if (typeof source === "string" && source.includes(ClearAbsPathKey)) {
+                                            const end = source.indexOf(ClearAbsPathKey);
+                                            let start = end;
+                                            while (start > 0 && source[start] !== ' ') {
+                                                start--;
+                                            }
+                                            if (start !== end) {
+                                                const absPath = source.slice(start + 1, end);
+                                                if (absPath) {
+                                                    source = source.replace(new RegExp(absPath, 'g'), typeof clearAbsPath === "string" && clearAbsPath ? clearAbsPath : '__ROOT__');
+                                                    const newAssets = new sources.RawSource(source);
+                                                    compilation.updateAsset(assetName, newAssets as any);
+                                                    logger.debug(`${PluginName}[${assetName}] complete clear abs path: ${absPath}`);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        );
+                    });
+                });
+            }
         }
         if (enableSplitChunks) {
             const backgroundEntry = Object.values(pagesConfig).find(config => config.type === 'background')?.entry;
@@ -174,9 +213,9 @@ export default (api: IApi) => {
             }
         }
         // console.log("modifyWebpackConfig", memo);
+        // debugger;
         return memo;
     });
-
 
     api.onBuildComplete(({err, stats}) => {
         if (err) return;

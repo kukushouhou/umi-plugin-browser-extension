@@ -1,4 +1,5 @@
 export declare const PluginName = "[umi-browser-extension]";
+export declare const ClearAbsPathKey = "_node_modules_babel_runtime_helpers_";
 export declare const F_EXCLUDE_COMPONENTS: string;
 export declare const F_EXCLUDE_MODELS: string;
 export declare const F_EXCLUDE_UTILS: string;
@@ -25,6 +26,7 @@ export interface browserExtensionConfig {
     splitChunksPathName: string;
     targets: Target[];
     manifestHandler?: (manifestJson: any, target: Target) => any;
+    clearAbsPath: boolean | string;
 }
 export declare const browserExtensionDefaultConfig: browserExtensionConfig;
 export interface browserExtensionEntryConfig {

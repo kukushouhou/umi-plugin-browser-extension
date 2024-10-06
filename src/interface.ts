@@ -2,6 +2,8 @@ import Path from "path";
 
 export const PluginName = "[umi-browser-extension]";
 
+export const ClearAbsPathKey = "_node_modules_babel_runtime_helpers_";
+
 // 排除组件文件夹名
 export const F_EXCLUDE_COMPONENTS = `${Path.posix.sep}components${Path.posix.sep}`;
 export const F_EXCLUDE_MODELS = `${Path.posix.sep}models${Path.posix.sep}`;
@@ -30,6 +32,7 @@ export interface browserExtensionConfig {
     splitChunksPathName: string;
     targets: Target[];
     manifestHandler?: (manifestJson: any, target: Target) => any;
+    clearAbsPath: boolean | string;
 }
 
 export const browserExtensionDefaultConfig: browserExtensionConfig = {
@@ -50,6 +53,7 @@ export const browserExtensionDefaultConfig: browserExtensionConfig = {
     splitChunks: true,
     splitChunksPathName: "chunks",
     targets: ['chrome'],
+    clearAbsPath: true,
 };
 
 export interface browserExtensionEntryConfig {

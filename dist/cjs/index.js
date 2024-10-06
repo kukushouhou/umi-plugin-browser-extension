@@ -36,6 +36,7 @@ var import_utils = require("@umijs/utils");
 var import_path = __toESM(require("path"));
 var import_interface = require("./interface");
 var import_utils2 = require("./utils");
+var import_webpack = require("webpack");
 var src_default = (api) => {
   api.describe({
     key: "browserExtension",
@@ -63,7 +64,8 @@ var src_default = (api) => {
           // manifestHandler?: (manifestJson: any, target: Target) => any;
           // joi2types bug 无法正确转换带参数的函数类型，因此只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest
           // https://github.com/ycjcl868/joi2types/pull/17
-          manifestHandler: joi.any().description("Joi2types bug 无法正确转换带参数的函数类型，修复前只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest")
+          manifestHandler: joi.any().description("Joi2types bug 无法正确转换带参数的函数类型，修复前只能用any代替，实际需要传入(manifest: any, target?: Target) => manifest"),
+          clearAbsPath: joi.alternatives([joi.boolean(), joi.string()]).default(true)
         });
       }
     }
@@ -71,7 +73,7 @@ var src_default = (api) => {
   const isDev = api.env === "development";
   let hasOpenHMR = false;
   const pluginConfig = (0, import_utils2.initPluginConfig)(api.userConfig.browserExtension || {});
-  const { splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets, manifestHandler } = pluginConfig;
+  const { splitChunks, jsCssOutputDir, splitChunksPathName, contentScriptsPathName, backgroundPathName, targets, manifestHandler, clearAbsPath } = pluginConfig;
   const manifestSourcePath = (0, import_utils2.completionManifestPath)(pluginConfig);
   const manifestSourcePathBefore = manifestSourcePath.replace(/\.json$/, "");
   let manifestBaseJson = (0, import_utils2.loadManifestBaseJson)(manifestSourcePath, pluginConfig);
@@ -151,6 +153,42 @@ var src_default = (api) => {
         }
         return !(!hasOpenHMR && plugin.constructor.name === "HotModuleReplacementPlugin");
       });
+      if (clearAbsPath) {
+        memo.plugins.push((compiler) => {
+          compiler.hooks.thisCompilation.tap("ReplaceAbsolutePathPlugin", (compilation) => {
+            compilation.hooks.processAssets.tap(
+              {
+                name: "ReplaceAbsolutePathPlugin",
+                stage: import_webpack.Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_SIZE
+              },
+              (assets) => {
+                for (const assetName in assets) {
+                  if (assetName.endsWith(".js")) {
+                    const asset = assets[assetName];
+                    let source = asset.source();
+                    if (typeof source === "string" && source.includes(import_interface.ClearAbsPathKey)) {
+                      const end = source.indexOf(import_interface.ClearAbsPathKey);
+                      let start = end;
+                      while (start > 0 && source[start] !== " ") {
+                        start--;
+                      }
+                      if (start !== end) {
+                        const absPath = source.slice(start + 1, end);
+                        if (absPath) {
+                          source = source.replace(new RegExp(absPath, "g"), typeof clearAbsPath === "string" && clearAbsPath ? clearAbsPath : "__ROOT__");
+                          const newAssets = new import_webpack.sources.RawSource(source);
+                          compilation.updateAsset(assetName, newAssets);
+                          import_utils.logger.debug(`${import_interface.PluginName}[${assetName}] complete clear abs path: ${absPath}`);
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            );
+          });
+        });
+      }
     }
     if (enableSplitChunks) {
       const backgroundEntry = (_a = Object.values(pagesConfig).find((config) => config.type === "background")) == null ? void 0 : _a.entry;

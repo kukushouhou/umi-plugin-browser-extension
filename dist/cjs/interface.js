@@ -29,6 +29,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/interface.ts
 var interface_exports = {};
 __export(interface_exports, {
+  ClearAbsPathKey: () => ClearAbsPathKey,
   F_EXCLUDE_COMPONENTS: () => F_EXCLUDE_COMPONENTS,
   F_EXCLUDE_MODELS: () => F_EXCLUDE_MODELS,
   F_EXCLUDE_UTILS: () => F_EXCLUDE_UTILS,
@@ -38,6 +39,7 @@ __export(interface_exports, {
 module.exports = __toCommonJS(interface_exports);
 var import_path = __toESM(require("path"));
 var PluginName = "[umi-browser-extension]";
+var ClearAbsPathKey = "_node_modules_babel_runtime_helpers_";
 var F_EXCLUDE_COMPONENTS = `${import_path.default.posix.sep}components${import_path.default.posix.sep}`;
 var F_EXCLUDE_MODELS = `${import_path.default.posix.sep}models${import_path.default.posix.sep}`;
 var F_EXCLUDE_UTILS = `${import_path.default.posix.sep}utils${import_path.default.posix.sep}`;
@@ -58,10 +60,12 @@ var browserExtensionDefaultConfig = {
   popupDefaultIcon: {},
   splitChunks: true,
   splitChunksPathName: "chunks",
-  targets: ["chrome"]
+  targets: ["chrome"],
+  clearAbsPath: true
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  ClearAbsPathKey,
   F_EXCLUDE_COMPONENTS,
   F_EXCLUDE_MODELS,
   F_EXCLUDE_UTILS,
