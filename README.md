@@ -109,7 +109,7 @@ export default {
 ## 待实现
 
 - [x] 内容脚本若处在主要运行时时单独切割代码或者不切割代码，主要运行时的代码主要负责调用页面本身上下文无法使用各种扩展 API
-- [ ] 监听内容脚本配置的改变并更新到构建产物的 manifest.json 中
+- [x] 监听内容脚本配置的改变并更新到构建产物的 manifest.json 中
 - [ ] 检测到新增任何入口后自动重启 umijs 处理
 - [ ] host_permissions、web_accessible_resources 和内容脚本的 matches 中支持填入变量 `<matches_urls>`，若填入该变量则最终输出的 manifest.json 中该变量自动替换为其他已找到的内容脚本全部匹配的 url，但会忽略其他内容脚本定义的 exclude_matches、include_globs、exclude_globs
 - [ ] 内容脚本的 matches 中支持填入变量 `<folder_matches_urls>`，若填入该变量效果和 `<matches_urls>` 一样，但只会合并当前入口父级目录下的全部内容脚本中设定的 matches

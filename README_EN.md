@@ -109,7 +109,7 @@ If you have filled in the `js` and `css` fields, you only need to provide relati
 ## TODO
 
 - [x] Content scripts in the main world context should split code separately or not split at all, as main world code primarily handles calling page context that cannot use extension APIs
-- [ ] Watch for content script configuration changes and update the build output manifest.json
+- [x] Watch for content script configuration changes and update the build output manifest.json
 - [ ] Automatically restart umijs processing when new entries are detected
 - [ ] Support variable `<matches_urls>` in host_permissions, web_accessible_resources and content script matches — when used, the variable is automatically replaced with all matched URLs from other content scripts, ignoring exclude_matches, include_globs, and exclude_globs
 - [ ] Support variable `<folder_matches_urls>` in content script matches — same as `<matches_urls>` but only merges matches from content scripts in the same parent directory
