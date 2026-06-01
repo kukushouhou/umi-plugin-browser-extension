@@ -2,7 +2,7 @@ import type {IApi} from 'umi';
 import {logger} from "@umijs/utils";
 import Path from "path";
 import {browserExtensionDefaultConfig, browserExtensionEntryConfig, ClearAbsPathKey, PluginName} from "./interface";
-import {completionManifestPath, completionWebpackEntryConfig, findPagesConfig, firstWriteAllFile, initPluginConfig, loadManifestBaseJson, loadManifestTargetJson, removeFileOrDirSync, splitChunksFilter, syncTargetsFiles, writeManifestV3Json} from "./utils";
+import {completionManifestPath, completionWebpackEntryConfig, findFileGroup, findPagesConfig, firstWriteAllFile, initPluginConfig, loadContentScriptsConfig, loadManifestBaseJson, loadManifestTargetJson, removeFileOrDirSync, splitChunksFilter, syncTargetsFiles, writeManifestV3Json} from "./utils";
 import {Compilation, sources} from 'webpack';
 
 
@@ -54,6 +54,7 @@ export default (api: IApi) => {
     //是否启用切割代码
     const enableSplitChunks = splitChunks && !isDev;
     const vendorEntry = enableSplitChunks ? Path.posix.join(jsCssOutputDir, splitChunksPathName, 'vendor') : "";
+    let umiMpaEntryConfig: { [k: string]: any } = {};
 
     api.onStart(() => {
         // 如果没有指定hmr的socket服务器地址,则自动禁用hmr,因为默认情况下插件无法适配hmr,只有popup与options有可能通过自定义真实sockets地址来做到
@@ -85,6 +86,7 @@ export default (api: IApi) => {
             logger.warn(`${PluginName} 请勿配置UmiJs自带代码分割功能,需使用本插件提供的代码分割`);
             logger.warn(`${PluginName} Please do not configure UmiJs own code splitting function, use the code splitting provided by this plugin`)
         }
+        umiMpaEntryConfig = memo.mpa.entry;
         pagesConfig = findPagesConfig(manifestBaseJson, pluginConfig, memo.mpa.entry, vendorEntry);
         outputPath = memo.outputPath || "dist";
         outputPath = Path.posix.join(outputPath, isDev ? 'dev' : 'build');
@@ -248,11 +250,45 @@ export default (api: IApi) => {
                     }
                     logger.info(`${PluginName} Update and write manifest.json file successfully.`);
                 }
+
+                const contentScriptsPath = Path.posix.join(pluginConfig.rootPath, pluginConfig.contentScriptsPathName);
+                const changedConfigPaths: string[] = [];
+                for (const {event, path} of files) {
+                    if (event === 'change' && path.startsWith(contentScriptsPath) && Path.posix.basename(path) === pluginConfig.configFileName) {
+                        changedConfigPaths.push(path);
+                    }
+                }
+                if (changedConfigPaths.length > 0) {
+                    for (const changedConfigPath of changedConfigPaths) {
+                        const changedDir = Path.posix.dirname(changedConfigPath);
+                        const entryPaths = findFileGroup(changedDir, pluginConfig.entryFileName);
+                        if (entryPaths.length !== 1) {
+                            logger.warn(`${PluginName} content script config changed but entry path not unique: ${changedConfigPath}, found ${entryPaths.length} entries`);
+                            continue;
+                        }
+                        const entryPath = entryPaths[0];
+                        const newConfig = loadContentScriptsConfig(entryPath, pluginConfig, umiMpaEntryConfig, vendorEntry);
+                        if (newConfig) {
+                            pagesConfig[entryPath] = newConfig;
+                        } else {
+                            delete pagesConfig[entryPath];
+                        }
+                    }
+                    for (const target of targets) {
+                        const targetPath = Path.posix.join(outputBasePath, target);
+                        writeManifestV3Json(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target, manifestHandler);
+                    }
+                    logger.info(`${PluginName} Content scripts config updated and written to manifest.json successfully.`);
+                }
             }
         }
     });
 
-    api.addTmpGenerateWatcherPaths(() => [manifestSourcePath, ...targets.map((t) => `${manifestSourcePathBefore}.${t}.json`)]);
+    api.addTmpGenerateWatcherPaths(() => {
+        const contentScriptsPath = Path.posix.join(pluginConfig.rootPath, pluginConfig.contentScriptsPathName);
+        const contentScriptsConfigPattern = `${contentScriptsPath}/**/${pluginConfig.configFileName}`;
+        return [manifestSourcePath, ...targets.map((t) => `${manifestSourcePathBefore}.${t}.json`), contentScriptsConfigPattern];
+    });
 
     // TODO 添加 content_script, options, background, popup页面的微生成器,下面的生成ManifestV3的微生成器没用,微生成器是给开发者的脚手架,不是编译中用的
 

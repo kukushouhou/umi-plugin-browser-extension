@@ -60,7 +60,7 @@ export function findPagesConfig(manifestBaseJson: { [k: string]: any }, pluginCo
     return result;
 }
 
-function loadContentScriptsConfig(entry: string, pluginConfig: browserExtensionConfig, umiMpaEntryConfig: { [k: string]: any }, vendorEntry: string): browserExtensionEntryConfig | null {
+export function loadContentScriptsConfig(entry: string, pluginConfig: browserExtensionConfig, umiMpaEntryConfig: { [k: string]: any }, vendorEntry: string): browserExtensionEntryConfig | null {
     const {rootPath, configFileName, encoding, jsCssOutputDir} = pluginConfig;
     const path = Path.posix.dirname(entry);
     const mpaName = path.replace(`${rootPath}${Path.posix.sep}`, '');
@@ -394,7 +394,7 @@ export function writeManifestV3Json(manifestBaseJson: { [k: string]: any }, mani
 }
 
 
-function findFileGroup(pathBefore: string, fileName: string) {
+export function findFileGroup(pathBefore: string, fileName: string) {
     return (glob.sync(`${pathBefore}/**/${fileName}`)).map(path => Path.posix.normalize(path)).filter(path => !path.includes(F_EXCLUDE_COMPONENTS) && !path.includes(F_EXCLUDE_MODELS) && !path.includes(F_EXCLUDE_UTILS));
 }
 
