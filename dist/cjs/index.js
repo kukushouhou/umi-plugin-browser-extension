@@ -83,6 +83,7 @@ var src_default = (api) => {
   let pagesConfig = {};
   const enableSplitChunks = splitChunks && !isDev;
   const vendorEntry = enableSplitChunks ? import_path.default.posix.join(jsCssOutputDir, splitChunksPathName, "vendor") : "";
+  let umiMpaEntryConfig = {};
   api.onStart(() => {
     if (process.env.SOCKET_SERVER) {
       hasOpenHMR = true;
@@ -105,6 +106,7 @@ var src_default = (api) => {
       import_utils.logger.warn(`${import_interface.PluginName} 请勿配置UmiJs自带代码分割功能,需使用本插件提供的代码分割`);
       import_utils.logger.warn(`${import_interface.PluginName} Please do not configure UmiJs own code splitting function, use the code splitting provided by this plugin`);
     }
+    umiMpaEntryConfig = memo.mpa.entry;
     pagesConfig = (0, import_utils2.findPagesConfig)(manifestBaseJson, pluginConfig, memo.mpa.entry, vendorEntry);
     outputPath = memo.outputPath || "dist";
     outputPath = import_path.default.posix.join(outputPath, isDev ? "dev" : "build");
@@ -252,8 +254,41 @@ var src_default = (api) => {
           }
           import_utils.logger.info(`${import_interface.PluginName} Update and write manifest.json file successfully.`);
         }
+        const contentScriptsPath = import_path.default.posix.join(pluginConfig.rootPath, pluginConfig.contentScriptsPathName);
+        const changedConfigPaths = [];
+        for (const { event, path } of files) {
+          if (event === "change" && path.startsWith(contentScriptsPath) && import_path.default.posix.basename(path) === pluginConfig.configFileName) {
+            changedConfigPaths.push(path);
+          }
+        }
+        if (changedConfigPaths.length > 0) {
+          for (const changedConfigPath of changedConfigPaths) {
+            const changedDir = import_path.default.posix.dirname(changedConfigPath);
+            const entryPaths = (0, import_utils2.findFileGroup)(changedDir, pluginConfig.entryFileName);
+            if (entryPaths.length !== 1) {
+              import_utils.logger.warn(`${import_interface.PluginName} content script config changed but entry path not unique: ${changedConfigPath}, found ${entryPaths.length} entries`);
+              continue;
+            }
+            const entryPath = entryPaths[0];
+            const newConfig = (0, import_utils2.loadContentScriptsConfig)(entryPath, pluginConfig, umiMpaEntryConfig, vendorEntry);
+            if (newConfig) {
+              pagesConfig[entryPath] = newConfig;
+            } else {
+              delete pagesConfig[entryPath];
+            }
+          }
+          for (const target of targets) {
+            const targetPath = import_path.default.posix.join(outputBasePath, target);
+            (0, import_utils2.writeManifestV3Json)(manifestBaseJson, manifestTargetsJson, targetPath, pagesConfig, target, manifestHandler);
+          }
+          import_utils.logger.info(`${import_interface.PluginName} Content scripts config updated and written to manifest.json successfully.`);
+        }
       }
     }
   });
-  api.addTmpGenerateWatcherPaths(() => [manifestSourcePath, ...targets.map((t) => `${manifestSourcePathBefore}.${t}.json`)]);
+  api.addTmpGenerateWatcherPaths(() => {
+    const contentScriptsPath = import_path.default.posix.join(pluginConfig.rootPath, pluginConfig.contentScriptsPathName);
+    const contentScriptsConfigPattern = `${contentScriptsPath}/**/${pluginConfig.configFileName}`;
+    return [manifestSourcePath, ...targets.map((t) => `${manifestSourcePathBefore}.${t}.json`), contentScriptsConfigPattern];
+  });
 };

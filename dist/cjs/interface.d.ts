@@ -41,4 +41,3 @@ export interface browserExtensionEntryConfig {
         [k: string]: any;
     };
 }
-//# sourceMappingURL=interface.d.ts.map

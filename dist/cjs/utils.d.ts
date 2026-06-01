@@ -13,6 +13,9 @@ export declare function findPagesConfig(manifestBaseJson: {
 }, vendorEntry: string): {
     [path: string]: browserExtensionEntryConfig;
 };
+export declare function loadContentScriptsConfig(entry: string, pluginConfig: browserExtensionConfig, umiMpaEntryConfig: {
+    [k: string]: any;
+}, vendorEntry: string): browserExtensionEntryConfig | null;
 export declare function completionManifestPath(pluginConfig: browserExtensionConfig, resultAbsolutePath?: boolean): string;
 export declare function loadManifestBaseJson(manifestSourcePath: string, pluginConfig: browserExtensionConfig): {
     [k: string]: any;
@@ -36,6 +39,7 @@ export declare function writeManifestV3Json(manifestBaseJson: {
 }, manifestTargetsJson: Partial<Record<Target, any>>, outputPath: string, pagesConfig: {
     [k: string]: browserExtensionEntryConfig;
 }, target: Target, manifestHandler?: (manifestJson: any, target: Target) => any): void;
+export declare function findFileGroup(pathBefore: string, fileName: string): string[];
 export declare function copyFileOrDirSync(src: string, dest: string): void;
 export declare function removeFileOrDirSync(filePath: string): void;
 /**
@@ -45,4 +49,3 @@ export declare function removeFileOrDirSync(filePath: string): void;
  */
 export declare function toPosixPath(inputPath: string): string;
 export declare function splitChunksFilter(backgroundEntry: string | undefined, mainWorldEntryGroup: browserExtensionEntryConfig[], matchMainWorldEntry: boolean): 'all' | ((chunk: webpack.Chunk) => boolean);
-//# sourceMappingURL=utils.d.ts.map
