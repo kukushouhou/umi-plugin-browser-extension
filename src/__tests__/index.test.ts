@@ -1,52 +1,22 @@
-import Path from 'path';
+import Fs from 'fs';
 
 // ─────────────────────────────────────────────────────────────────
-// Mock the entire utils module before importing the plugin
+// Mock variables — declared before jest.mock (hoisting requirement)
 // ─────────────────────────────────────────────────────────────────
-const mockInitPluginConfig = jest.fn();
-const mockCompletionManifestPath = jest.fn();
-const mockLoadManifestBaseJson = jest.fn();
-const mockLoadManifestTargetJson = jest.fn();
-const mockFindPagesConfig = jest.fn();
 const mockFindFileGroup = jest.fn();
 const mockLoadContentScriptsConfig = jest.fn();
-const mockWriteManifestV3Json = jest.fn();
-const mockRemoveFileOrDirSync = jest.fn();
-const mockCompletionWebpackEntryConfig = jest.fn();
-const mockFirstWriteAllFile = jest.fn();
-const mockSyncTargetsFiles = jest.fn();
-const mockSplitChunksFilter = jest.fn();
+const mockFindPagesConfig = jest.fn().mockReturnValue({});
+const mockLoadManifestBaseJson = jest.fn().mockReturnValue({
+  name: 'TestExt',
+  version: '1.0.0',
+  manifest_version: 3,
+});
+const mockLoadManifestTargetJson = jest.fn().mockReturnValue({});
+const mockCompletionManifestPath = jest.fn().mockReturnValue('src/manifest.json');
 
-let capturedUmiMpaEntryConfig: any = null;
-let capturedPagesConfig: any = null;
-let capturedVendorEntry: string | null = null;
-
-// Mock findPagesConfig to capture the umiMpaEntryConfig reference
-mockFindPagesConfig.mockImplementation(
-  (_manifestBaseJson: any, _pluginConfig: any, umiMpaEntryConfig: any, vendorEntry: string) => {
-    capturedUmiMpaEntryConfig = umiMpaEntryConfig;
-    capturedVendorEntry = vendorEntry;
-    capturedPagesConfig = {};
-    return capturedPagesConfig;
-  },
-);
-
-jest.mock('../utils', () => ({
-  initPluginConfig: (...args: any[]) => mockInitPluginConfig(...args),
-  completionManifestPath: (...args: any[]) => mockCompletionManifestPath(...args),
-  loadManifestBaseJson: (...args: any[]) => mockLoadManifestBaseJson(...args),
-  loadManifestTargetJson: (...args: any[]) => mockLoadManifestTargetJson(...args),
-  findPagesConfig: (...args: any[]) => mockFindPagesConfig(...args),
-  findFileGroup: (...args: any[]) => mockFindFileGroup(...args),
-  loadContentScriptsConfig: (...args: any[]) => mockLoadContentScriptsConfig(...args),
-  writeManifestV3Json: (...args: any[]) => mockWriteManifestV3Json(...args),
-  removeFileOrDirSync: (...args: any[]) => mockRemoveFileOrDirSync(...args),
-  completionWebpackEntryConfig: (...args: any[]) => mockCompletionWebpackEntryConfig(...args),
-  firstWriteAllFile: (...args: any[]) => mockFirstWriteAllFile(...args),
-  syncTargetsFiles: (...args: any[]) => mockSyncTargetsFiles(...args),
-  splitChunksFilter: (...args: any[]) => mockSplitChunksFilter(...args),
-}));
-
+// ─────────────────────────────────────────────────────────────────
+// Mock @umijs/utils — needed by writeManifestV3Json (deepmerge.all)
+// ─────────────────────────────────────────────────────────────────
 jest.mock('@umijs/utils', () => ({
   logger: {
     info: jest.fn(),
@@ -55,10 +25,42 @@ jest.mock('@umijs/utils', () => ({
     ready: jest.fn(),
     debug: jest.fn(),
   },
+  chalk: {
+    green: jest.fn((s: string) => s),
+    blue: jest.fn((s: string) => s),
+  },
+  deepmerge: {
+    all: jest.fn((arr: any[]) => Object.assign({}, ...arr)),
+  },
+  glob: {
+    sync: jest.fn(),
+  },
 }));
 
 // ─────────────────────────────────────────────────────────────────
-// Helper to create a mock IApi
+// Mock utils — writeManifestV3Json is REAL (from ...actual), rest mocked
+// ─────────────────────────────────────────────────────────────────
+jest.mock('../utils', () => {
+  const actual = jest.requireActual('../utils');
+  return {
+    ...actual,
+    findFileGroup: (...args: any[]) => mockFindFileGroup(...args),
+    loadContentScriptsConfig: (...args: any[]) => mockLoadContentScriptsConfig(...args),
+    findPagesConfig: (...args: any[]) => mockFindPagesConfig(...args),
+    loadManifestBaseJson: (...args: any[]) => mockLoadManifestBaseJson(...args),
+    loadManifestTargetJson: (...args: any[]) => mockLoadManifestTargetJson(...args),
+    completionManifestPath: (...args: any[]) => mockCompletionManifestPath(...args),
+    removeFileOrDirSync: jest.fn(),
+    firstWriteAllFile: jest.fn(),
+    syncTargetsFiles: jest.fn(),
+    completionWebpackEntryConfig: jest.fn(),
+    splitChunksFilter: jest.fn().mockReturnValue('all'),
+    copyFileOrDirSync: jest.fn(),
+  };
+});
+
+// ─────────────────────────────────────────────────────────────────
+// Helpers
 // ─────────────────────────────────────────────────────────────────
 interface HookRecord {
   callback: (...args: any[]) => any;
@@ -107,66 +109,109 @@ function createMockApi(
   return { api, hooks };
 }
 
+/**
+ * Register the plugin + trigger modifyConfig (resets pagesConfig to findPagesConfig return).
+ */
+function setupAndTriggerModifyConfig(
+  env: 'development' | 'production' = 'development',
+  userConfig: any = {},
+) {
+  const { api, hooks } = createMockApi(env, userConfig);
+  require('../index').default(api);
+  const memo: any = { mpa: { entry: {} } };
+  hooks.modifyConfig![0].callback(memo);
+  return { api, hooks, memo };
+}
+
+/** Build a minimal content_script entry config for pagesConfig population. */
+function csEntry(overrides: any = {}) {
+  return {
+    name: 'foo',
+    path: 'src/pages/content_scripts/foo',
+    file: 'src/pages/content_scripts/foo/index.ts',
+    entry: 'umi/content_scripts/foo/index',
+    type: 'content_script' as const,
+    config: { matches: ['https://example.com/*'], js: ['foo.js'] },
+    ...overrides,
+  };
+}
+
+/** Parse the captured manifest.json content from the last writeFileSync call. */
+function getLastWrittenManifest(): any {
+  const calls = (Fs.writeFileSync as jest.Mock).mock.calls;
+  const manifestCalls = calls.filter((c: any[]) => (c[0] as string).endsWith('manifest.json'));
+  if (manifestCalls.length === 0) return null;
+  return JSON.parse(manifestCalls[manifestCalls.length - 1][1]);
+}
+
+/** Return all captured manifest.json contents (for multi-target tests). */
+function getAllWrittenManifests(): { path: string; content: any }[] {
+  const calls = (Fs.writeFileSync as jest.Mock).mock.calls;
+  return calls
+    .filter((c: any[]) => (c[0] as string).endsWith('manifest.json'))
+    .map((c: any[]) => ({ path: c[0] as string, content: JSON.parse(c[1]) }));
+}
+
 // ─────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────
 describe('插件入口 (index.ts)', () => {
+  let writeFileSyncSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Default mock returns
-    mockInitPluginConfig.mockReturnValue({
-      rootPath: 'src/pages',
-      entryFileName: 'index.[jt]s{,x}',
-      configFileName: 'index.json',
-      encoding: 'utf-8',
-      jsCssOutputDir: 'umi',
-      manifestFilePath: 'manifest.json',
-      contentScriptsPathName: 'content_scripts',
-      backgroundPathName: 'background',
-      optionsPathName: 'options',
-      popupPathName: 'popup',
-      optionsOpenInTab: true,
-      optionsTitle: '',
-      popupDefaultTitle: '',
-      popupDefaultIcon: {},
-      splitChunks: true,
-      splitChunksPathName: 'chunks',
-      targets: ['chrome'],
-      clearAbsPath: true,
+    // Reset mock defaults
+    mockFindPagesConfig.mockReturnValue({});
+    mockLoadManifestBaseJson.mockReturnValue({
+      name: 'TestExt',
+      version: '1.0.0',
+      manifest_version: 3,
     });
-    mockCompletionManifestPath.mockReturnValue('src/manifest.json');
-    mockLoadManifestBaseJson.mockReturnValue({ name: 'TestExtension', version: '1.0.0', manifest_version: 3 });
     mockLoadManifestTargetJson.mockReturnValue({});
-    mockSplitChunksFilter.mockReturnValue('all');
+    mockCompletionManifestPath.mockReturnValue('src/manifest.json');
 
-    // Reset capture variables
-    capturedUmiMpaEntryConfig = null;
-    capturedPagesConfig = null;
-    capturedVendorEntry = null;
+    // Spy on Fs.writeFileSync to capture manifest.json writes
+    writeFileSyncSpy = jest.spyOn(Fs, 'writeFileSync').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    writeFileSyncSpy.mockRestore();
   });
 
   // ─────────────────────────────────────────────────────────────
-  // Cross-lifecycle state passing
+  // 跨生命周期状态传递 (modifyConfig → onGenerateFiles)
   // ─────────────────────────────────────────────────────────────
   describe('跨生命周期状态传递 (modifyConfig → onGenerateFiles)', () => {
-    it('应在 modifyConfig 阶段捕获 memo.mpa.entry 引用至闭包变量', () => {
+    it('应在 modifyConfig 阶段捕获 memo.mpa.entry 引用并传递给 onGenerateFiles 回调', () => {
       const { api, hooks } = createMockApi('development');
 
-      // Load the plugin (which registers all hooks)
       require('../index').default(api);
 
-      // Verify modifyConfig was registered
       expect(api.modifyConfig).toHaveBeenCalledTimes(1);
       expect(hooks.modifyConfig).toBeDefined();
       expect(hooks.modifyConfig!.length).toBe(1);
 
-      // Trigger modifyConfig callback
-      const memo = { mpa: { entry: { myEntry: { title: 'test' } } } };
+      const memo: any = { mpa: { entry: { myEntry: { title: 'test' } } } };
       hooks.modifyConfig![0].callback(memo);
 
-      // umiMpaEntryConfig should now reference memo.mpa.entry
-      expect(capturedUmiMpaEntryConfig).toBe(memo.mpa.entry);
+      // Trigger onGenerateFiles → loadContentScriptsConfig receives captured umiMpaEntryConfig
+      mockFindFileGroup.mockReturnValue(['src/pages/content_scripts/foo/index.ts']);
+      mockLoadContentScriptsConfig.mockReturnValue(csEntry());
+
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [{ event: 'change', path: 'src/pages/content_scripts/foo/index.json' }],
+      });
+
+      // 3rd arg to loadContentScriptsConfig === umiMpaEntryConfig === memo.mpa.entry
+      expect(mockLoadContentScriptsConfig).toHaveBeenCalled();
+      const capturedRef: any = mockLoadContentScriptsConfig.mock.calls[0][2];
+      expect(capturedRef).toBe(memo.mpa.entry);
+
+      // 引用传递验证：修改源对象应反映在捕获引用中
+      memo.mpa.entry.newProp = 'visible';
+      expect(capturedRef.newProp).toBe('visible');
     });
   });
 
@@ -180,43 +225,22 @@ describe('插件入口 (index.ts)', () => {
       require('../index').default(api);
 
       expect(api.addTmpGenerateWatcherPaths).toHaveBeenCalledTimes(1);
-      expect(hooks.addTmpGenerateWatcherPaths).toBeDefined();
-
       const paths = hooks.addTmpGenerateWatcherPaths![0].callback();
 
-      // Should include manifest source path
       expect(paths).toContain('src/manifest.json');
-      // Should include target-specific manifest paths (for chrome)
       expect(paths.some((p: string) => p.includes('.chrome.json'))).toBe(true);
-      // Should include content scripts config pattern
-      const configPattern = paths.find((p: string) => p.includes('content_scripts') && p.includes('index.json'));
+
+      const configPattern = paths.find(
+        (p: string) => p.includes('content_scripts') && p.includes('index.json'),
+      );
       expect(configPattern).toBeDefined();
       expect(configPattern).toContain('**');
     });
 
     it('应在多 target 场景下列出所有 target 的 manifest 路径', () => {
-      mockInitPluginConfig.mockReturnValue({
-        rootPath: 'src/pages',
-        entryFileName: 'index.[jt]s{,x}',
-        configFileName: 'index.json',
-        encoding: 'utf-8',
-        jsCssOutputDir: 'umi',
-        manifestFilePath: 'manifest.json',
-        contentScriptsPathName: 'content_scripts',
-        backgroundPathName: 'background',
-        optionsPathName: 'options',
-        popupPathName: 'popup',
-        optionsOpenInTab: true,
-        optionsTitle: '',
-        popupDefaultTitle: '',
-        popupDefaultIcon: {},
-        splitChunks: true,
-        splitChunksPathName: 'chunks',
+      const { api, hooks } = createMockApi('development', {
         targets: ['chrome', 'firefox'],
-        clearAbsPath: true,
       });
-
-      const { api, hooks } = createMockApi('development');
 
       require('../index').default(api);
 
@@ -231,32 +255,9 @@ describe('插件入口 (index.ts)', () => {
   // onGenerateFiles — 内容脚本配置变更检测
   // ─────────────────────────────────────────────────────────────
   describe('onGenerateFiles — 内容脚本配置变更检测', () => {
-    function setupAndTriggerModifyConfig(env: 'development' | 'production' = 'development') {
-      const { api, hooks } = createMockApi(env);
-
-      // Clear the module cache to get fresh plugin instance
-      jest.isolateModules(() => {
-        // Not using isolateModules here; we need the same module reference
-      });
-
-      require('../index').default(api);
-
-      // Trigger modifyConfig to initialize pagesConfig and umiMpaEntryConfig
-      const memo: any = { mpa: { entry: {} } };
-      hooks.modifyConfig![0].callback(memo);
-
-      return { api, hooks, memo };
-    }
-
     it('应忽略 production 环境下的文件变更', () => {
-      const { api, hooks } = createMockApi('production');
+      const { hooks } = setupAndTriggerModifyConfig('production');
 
-      require('../index').default(api);
-
-      // Trigger modifyConfig
-      hooks.modifyConfig![0].callback({ mpa: { entry: {} } });
-
-      // Trigger onGenerateFiles with content script config change
       const files = [
         { event: 'change', path: 'src/pages/content_scripts/foo/index.json' },
       ];
@@ -265,8 +266,8 @@ describe('插件入口 (index.ts)', () => {
         hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
       }
 
-      // In production, the callback should execute but not enter the isDev block
-      expect(mockWriteManifestV3Json).not.toHaveBeenCalled();
+      // production 环境下 isDev=false → 不进入 if(isDev) 分支 → 不写 manifest
+      expect(Fs.writeFileSync).not.toHaveBeenCalled();
     });
 
     it('应忽略首次生成 (isFirstTime=true) 时的文件变更', () => {
@@ -280,8 +281,7 @@ describe('插件入口 (index.ts)', () => {
         hooks.onGenerateFiles[0].callback({ isFirstTime: true, files });
       }
 
-      // Should not write manifest because isFirstTime is true
-      expect(mockWriteManifestV3Json).not.toHaveBeenCalled();
+      expect(Fs.writeFileSync).not.toHaveBeenCalled();
     });
 
     it('应忽略 files 为 undefined/null 的情况', () => {
@@ -291,44 +291,39 @@ describe('插件入口 (index.ts)', () => {
         hooks.onGenerateFiles[0].callback({ isFirstTime: false, files: undefined });
       }
 
-      expect(mockWriteManifestV3Json).not.toHaveBeenCalled();
+      expect(Fs.writeFileSync).not.toHaveBeenCalled();
     });
 
-    it('应在内容脚本配置文件变更时触发增量更新并重写 manifest.json', () => {
+    it('应在内容脚本配置文件变更时写入正确 manifest.json（产物断言）', () => {
       const { hooks } = setupAndTriggerModifyConfig('development');
 
-      // Setup mock for findFileGroup to return one entry
       mockFindFileGroup.mockReturnValue(['src/pages/content_scripts/foo/index.ts']);
-      // Setup mock for loadContentScriptsConfig to return a new config
-      mockLoadContentScriptsConfig.mockReturnValue({
-        name: 'content_scripts/foo',
-        path: 'src/pages/content_scripts/foo',
-        file: 'src/pages/content_scripts/foo/index.ts',
-        entry: 'umi/content_scripts/foo/index',
-        type: 'content_script',
-        config: { matches: ['https://updated.com/*'], js: ['foo.js'] },
+      mockLoadContentScriptsConfig.mockReturnValue(
+        csEntry({ config: { matches: ['https://updated.com/*'], js: ['foo.js'] } }),
+      );
+
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [{ event: 'change', path: 'src/pages/content_scripts/foo/index.json' }],
       });
 
-      const files = [
-        { event: 'change', path: 'src/pages/content_scripts/foo/index.json' },
-      ];
+      // 写入 1 次 manifest.json（单 target chrome）
+      expect(Fs.writeFileSync).toHaveBeenCalledTimes(1);
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
-
-      // Should call findFileGroup for the changed directory
-      expect(mockFindFileGroup).toHaveBeenCalledWith(
-        'src/pages/content_scripts/foo',
-        'index.[jt]s{,x}',
-      );
-      // Should call loadContentScriptsConfig for the found entry
-      expect(mockLoadContentScriptsConfig).toHaveBeenCalled();
-      // Should call writeManifestV3Json for each target (default: chrome)
-      expect(mockWriteManifestV3Json).toHaveBeenCalledTimes(1);
+      const manifest = getLastWrittenManifest();
+      expect(manifest).not.toBeNull();
+      expect(manifest.name).toBe('TestExt');
+      expect(manifest.version).toBe('1.0.0');
+      expect(manifest.manifest_version).toBe(3);
+      expect(manifest.content_scripts).toBeDefined();
+      expect(manifest.content_scripts).toHaveLength(1);
+      expect(manifest.content_scripts[0]).toMatchObject({
+        matches: ['https://updated.com/*'],
+        js: ['foo.js'],
+      });
     });
 
-    it('应正确处理多个内容脚本配置文件同时变更', () => {
+    it('应正确处理多个内容脚本配置文件同时变更（批量写一次）', () => {
       const { hooks } = setupAndTriggerModifyConfig('development');
 
       mockFindFileGroup.mockImplementation((dir: string) => {
@@ -337,176 +332,187 @@ describe('插件入口 (index.ts)', () => {
         return [];
       });
 
-      mockLoadContentScriptsConfig.mockImplementation((entryPath: string) => ({
-        name: entryPath.includes('foo') ? 'content_scripts/foo' : 'content_scripts/bar',
-        config: { matches: ['https://example.com/*'] },
-        type: 'content_script',
-      }));
+      mockLoadContentScriptsConfig.mockImplementation((entryPath: string) =>
+        entryPath.includes('foo')
+          ? csEntry({
+              name: 'foo',
+              file: 'src/pages/content_scripts/foo/index.ts',
+              config: { matches: ['https://foo.com/*'], js: ['foo.js'] },
+            })
+          : csEntry({
+              name: 'bar',
+              file: 'src/pages/content_scripts/bar/index.ts',
+              config: { matches: ['https://bar.com/*'], css: ['bar.css'] },
+            }),
+      );
 
-      const files = [
-        { event: 'change', path: 'src/pages/content_scripts/foo/index.json' },
-        { event: 'change', path: 'src/pages/content_scripts/bar/index.json' },
-      ];
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [
+          { event: 'change', path: 'src/pages/content_scripts/foo/index.json' },
+          { event: 'change', path: 'src/pages/content_scripts/bar/index.json' },
+        ],
+      });
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
-
-      // Should call loadContentScriptsConfig twice (once per changed config)
+      // loadContentScriptsConfig 调用 2 次，但 writeManifestV3Json 只调用 1 次（批量）
       expect(mockLoadContentScriptsConfig).toHaveBeenCalledTimes(2);
-      // Should call writeManifestV3Json once (batch update after all configs processed)
-      expect(mockWriteManifestV3Json).toHaveBeenCalledTimes(1);
+      expect(Fs.writeFileSync).toHaveBeenCalledTimes(1);
+
+      const manifest = getLastWrittenManifest();
+      expect(manifest.content_scripts).toHaveLength(2);
+      expect(manifest.content_scripts[0]).toMatchObject({ matches: ['https://foo.com/*'], js: ['foo.js'] });
+      expect(manifest.content_scripts[1]).toMatchObject({ matches: ['https://bar.com/*'], css: ['bar.css'] });
     });
 
     it('应仅响应 change 事件，忽略 add 和 unlink 事件', () => {
       const { hooks } = setupAndTriggerModifyConfig('development');
 
-      const files = [
-        { event: 'add', path: 'src/pages/content_scripts/new_script/index.json' },
-        { event: 'unlink', path: 'src/pages/content_scripts/old_script/index.json' },
-      ];
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [
+          { event: 'add', path: 'src/pages/content_scripts/new_script/index.json' },
+          { event: 'unlink', path: 'src/pages/content_scripts/old_script/index.json' },
+        ],
+      });
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
-
-      // Should not call findFileGroup or loadContentScriptsConfig for add/unlink
+      // 既无 findFileGroup 也无 loadContentScriptsConfig 调用，更无写 manifest
       expect(mockFindFileGroup).not.toHaveBeenCalled();
       expect(mockLoadContentScriptsConfig).not.toHaveBeenCalled();
+      expect(Fs.writeFileSync).not.toHaveBeenCalled();
     });
 
     it('应忽略非 content_scripts 路径下的 index.json 变更', () => {
       const { hooks } = setupAndTriggerModifyConfig('development');
 
-      const files = [
-        { event: 'change', path: 'src/pages/background/index.json' },
-        { event: 'change', path: 'src/pages/options/index.json' },
-      ];
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [
+          { event: 'change', path: 'src/pages/background/index.json' },
+          { event: 'change', path: 'src/pages/options/index.json' },
+        ],
+      });
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
-
-      // content_scripts path is "src/pages/content_scripts"
-      // background path "src/pages/background" should NOT match
       expect(mockFindFileGroup).not.toHaveBeenCalled();
       expect(mockLoadContentScriptsConfig).not.toHaveBeenCalled();
+      expect(Fs.writeFileSync).not.toHaveBeenCalled();
     });
 
-    it('应在 findFileGroup 返回非唯一结果时记录警告并跳过更新', () => {
+    it('应在 findFileGroup 返回非唯一结果时记录警告，跳过该条目但 manifest 仍会写入', () => {
       const { hooks } = setupAndTriggerModifyConfig('development');
 
-      // Return multiple entries for a single directory
       mockFindFileGroup.mockReturnValue([
         'src/pages/content_scripts/foo/index.ts',
         'src/pages/content_scripts/foo/index.tsx',
       ]);
 
-      const files = [
-        { event: 'change', path: 'src/pages/content_scripts/foo/index.json' },
-      ];
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [{ event: 'change', path: 'src/pages/content_scripts/foo/index.json' }],
+      });
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
-
-      // Should log warning about non-unique entry
       const { logger } = require('@umijs/utils');
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('entry path not unique'),
       );
-      // Should NOT call loadContentScriptsConfig
+      // continue 跳过 loadContentScriptsConfig，但 writeManifestV3Json 仍执行
       expect(mockLoadContentScriptsConfig).not.toHaveBeenCalled();
+
+      // manifest 仍会写入（pagesConfig 为空，只有基础字段）
+      expect(Fs.writeFileSync).toHaveBeenCalledTimes(1);
+      const manifest = getLastWrittenManifest();
+      expect(manifest.name).toBe('TestExt');
+      expect(manifest.content_scripts).toBeUndefined();
     });
 
-    it('应在 loadContentScriptsConfig 返回 null 时从 pagesConfig 中删除对应条目', () => {
+    it('应在 loadContentScriptsConfig 返回 null 时从 pagesConfig 删除条目且 manifest 不含该条目', () => {
+      // 预设 findPagesConfig 返回一个已有条目，模拟"之前存在，现在配置被删除"
+      mockFindPagesConfig.mockReturnValue({
+        'src/pages/content_scripts/foo/index.ts': csEntry({
+          name: 'foo',
+          file: 'src/pages/content_scripts/foo/index.ts',
+          config: { matches: ['https://old.com/*'], js: ['old.js'] },
+        }),
+      });
+
       const { hooks } = setupAndTriggerModifyConfig('development');
 
       mockFindFileGroup.mockReturnValue(['src/pages/content_scripts/foo/index.ts']);
-      mockLoadContentScriptsConfig.mockReturnValue(null);
+      mockLoadContentScriptsConfig.mockReturnValue(null); // 配置删除了
 
-      const files = [
-        { event: 'change', path: 'src/pages/content_scripts/foo/index.json' },
-      ];
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [{ event: 'change', path: 'src/pages/content_scripts/foo/index.json' }],
+      });
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
+      // writeManifestV3Json 仍被调用，但 content_scripts 应为空
+      expect(Fs.writeFileSync).toHaveBeenCalledTimes(1);
 
-      // Should still call writeManifestV3Json (with the entry removed)
-      expect(mockWriteManifestV3Json).toHaveBeenCalledTimes(1);
+      const manifest = getLastWrittenManifest();
+      expect(manifest.content_scripts).toBeUndefined();
     });
 
-    it('应在多 target 场景下遍历所有 target 重写 manifest.json', () => {
-      mockInitPluginConfig.mockReturnValue({
-        rootPath: 'src/pages',
-        entryFileName: 'index.[jt]s{,x}',
-        configFileName: 'index.json',
-        encoding: 'utf-8',
-        jsCssOutputDir: 'umi',
-        manifestFilePath: 'manifest.json',
-        contentScriptsPathName: 'content_scripts',
-        backgroundPathName: 'background',
-        optionsPathName: 'options',
-        popupPathName: 'popup',
-        optionsOpenInTab: true,
-        optionsTitle: '',
-        popupDefaultTitle: '',
-        popupDefaultIcon: {},
-        splitChunks: false,
-        splitChunksPathName: 'chunks',
+    it('应在多 target 场景下遍历所有 target 分别写入正确的 manifest.json', () => {
+      const { hooks } = setupAndTriggerModifyConfig('development', {
         targets: ['chrome', 'firefox'],
-        clearAbsPath: true,
       });
-
-      const { api, hooks } = createMockApi('development');
-      require('../index').default(api);
-
-      // Trigger modifyConfig
-      hooks.modifyConfig![0].callback({ mpa: { entry: {} } });
 
       mockFindFileGroup.mockReturnValue(['src/pages/content_scripts/foo/index.ts']);
-      mockLoadContentScriptsConfig.mockReturnValue({
-        name: 'foo',
-        config: { matches: ['https://example.com/*'] },
-        type: 'content_script',
+      mockLoadContentScriptsConfig.mockReturnValue(
+        csEntry({
+          config: {
+            matches: ['https://example.com/*'],
+            js: ['foo.js'],
+          },
+        }),
+      );
+
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [{ event: 'change', path: 'src/pages/content_scripts/foo/index.json' }],
       });
 
-      const files = [
-        { event: 'change', path: 'src/pages/content_scripts/foo/index.json' },
-      ];
+      // chrome + firefox = 2 次 writeFileSync
+      expect(Fs.writeFileSync).toHaveBeenCalledTimes(2);
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
+      const manifests = getAllWrittenManifests();
+      expect(manifests).toHaveLength(2);
 
-      // Should write manifest for both targets
-      expect(mockWriteManifestV3Json).toHaveBeenCalledTimes(2);
+      // chrome manifest
+      const chromeManifest = manifests.find((m) => m.path.includes('chrome') && !m.path.includes('firefox'));
+      expect(chromeManifest).toBeDefined();
+      expect(chromeManifest!.content.content_scripts).toHaveLength(1);
+      expect(chromeManifest!.content.content_scripts[0].matches).toEqual(['https://example.com/*']);
 
-      // Verify target parameters (chrome and firefox)
-      const calls = mockWriteManifestV3Json.mock.calls;
-      const targetsInCalls = calls.map((c: any[]) => c[4]); // 5th arg is target
-      expect(targetsInCalls).toContain('chrome');
-      expect(targetsInCalls).toContain('firefox');
+      // firefox manifest → service_worker 被替换为 scripts（内部 completionManifestV3ToFirefox 调用）
+      const firefoxManifest = manifests.find((m) => m.path.includes('firefox'));
+      expect(firefoxManifest).toBeDefined();
     });
 
-    it('应维持既有的 manifest 源文件变更检测逻辑不变', () => {
+    it('应在 manifest 源文件变更时重新加载 base/target json 并重写所有 target 的 manifest', () => {
       const { hooks } = setupAndTriggerModifyConfig('development');
 
-      const files = [
-        { event: 'change', path: 'src/manifest.json' },
-      ];
+      // 模拟 manifest.json 自身被修改后，loadManifestBaseJson 返回新内容
+      mockLoadManifestBaseJson.mockReturnValue({
+        name: 'UpdatedExt',
+        version: '2.0.0',
+        manifest_version: 3,
+      });
 
-      if (hooks.onGenerateFiles && hooks.onGenerateFiles.length > 0) {
-        hooks.onGenerateFiles[0].callback({ isFirstTime: false, files });
-      }
+      hooks.onGenerateFiles![0].callback({
+        isFirstTime: false,
+        files: [{ event: 'change', path: 'src/manifest.json' }],
+      });
 
-      // Should reload manifest base json
+      // 应重新加载 base json
       expect(mockLoadManifestBaseJson).toHaveBeenCalled();
-      // Should reload manifest target json
+      // 应重新加载 target json
       expect(mockLoadManifestTargetJson).toHaveBeenCalled();
-      // Should rewrite manifest for each target
-      expect(mockWriteManifestV3Json).toHaveBeenCalled();
+      // 单 target 写 1 次
+      expect(Fs.writeFileSync).toHaveBeenCalledTimes(1);
+
+      const manifest = getLastWrittenManifest();
+      expect(manifest.name).toBe('UpdatedExt');
+      expect(manifest.version).toBe('2.0.0');
     });
   });
 });
